@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="個人制作したHTMLゲームやWeb作品を公開するページです。">
+  <title>My Web Works</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f6f7f9;
+      --card: #ffffff;
+      --text: #202124;
+      --sub: #666;
+      --line: #ddd;
+      --accent: #2563eb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111827;
+        --card: #1f2937;
+        --text: #f3f4f6;
+        --sub: #b6beca;
+        --line: #374151;
+        --accent: #60a5fa;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Noto Sans JP", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+    }
+    header, main, footer {
+      width: min(900px, 92%);
+      margin-inline: auto;
+    }
+    header { padding: 64px 0 28px; }
+    h1 { margin: 0 0 8px; font-size: clamp(2rem, 8vw, 3.4rem); }
+    header p { margin: 0; color: var(--sub); }
+    .works {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+      padding: 16px 0 48px;
+    }
+    .card {
+      display: block;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      color: inherit;
+      text-decoration: none;
+      transition: transform .15s ease, border-color .15s ease;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent);
+    }
+    .card h2 { margin: 0 0 8px; font-size: 1.15rem; }
+    .card p { margin: 0; color: var(--sub); font-size: .95rem; }
+    .empty {
+      padding: 24px;
+      border: 1px dashed var(--line);
+      border-radius: 16px;
+      color: var(--sub);
+    }
+    footer {
+      border-top: 1px solid var(--line);
+      padding: 24px 0 40px;
+      color: var(--sub);
+      font-size: .9rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>My Web Works</h1>
+    <p>HTMLで作った小さなゲームやWeb作品の置き場。</p>
+  </header>
+
+  <main>
+    <section class="works" aria-label="作品一覧">
+      <!--
+      作品を追加するときは、下の例をコピーしてください。
+
+      <a class="card" href="./mahjong-fortune/">
+        <h2>麻雀牌占い</h2>
+        <p>三麻の配牌から今日の運勢を占うゲーム。</p>
+      </a>
+      -->
+
+      <div class="empty">
+        まだ作品はありません。<br>
+        新しい作品をここに追加していきます。
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span id="year"></span> My Web Works
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent =
+      "© " + new Date().getFullYear();
+  </script>
+</body>
+</html>

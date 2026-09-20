@@ -68,7 +68,13 @@ footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
 
 <section class="card">
 <h2>データ管理</h2>
-<div class="actions"><button class="secondary" onclick="exportData()">JSONを書き出す</button><button class="danger" onclick="resetAll()">本日のデータを全消去</button></div>
+<div class="actions">
+<button class="secondary" onclick="exportData()">JSONを書き出す</button>
+<button class="secondary" onclick="document.getElementById('importFile').click()">JSONを読み込む</button>
+<input id="importFile" type="file" accept=".json,application/json" style="display:none" onchange="importData(event)">
+<button class="danger" onclick="resetAll()">本日のデータを全消去</button>
+</div>
+<div class="hint">読み込みを行うと、現在の参加者・対局履歴・設定を読み込んだJSONの内容で置き換えます。</div>
 </section>
 </main>
 <footer>データはこの端末のブラウザ内に自動保存されます。</footer>
@@ -154,8 +160,30 @@ function renderHistory(){
  $("history").innerHTML=[...state.matches].reverse().map((m,ri)=>{
   const idx=state.matches.length-ri;
   const body=m.entries.map(e=>{const p=state.players.find(p=>p.id===e.id);return `${e.rank}着 ${esc(p?.name||"削除済")} ${e.points.toLocaleString()}点 <b>${signed(e.score,1)}</b>`}).join("　");
-  return `<div class="match"><div class="matchHead"><span>第${idx}戦　${esc(m.time)}</span><button class="danger" onclick="deleteMatch(${m.id})">削除</button></div><div class="matchBody">${body}</div></div>`
+  return `<div class="match"><div class="matchHead"><span>第${idx}戦　${esc(m.time)}${m.edited?"（修正済）":""}</span><span><button class="secondary" onclick="editMatch(${m.id})">修正</button> <button class="danger" onclick="deleteMatch(${m.id})">削除</button></span></div><div class="matchBody">${body}</div></div>`
  }).join("");
+}
+function editMatch(id){
+ const m=state.matches.find(x=>x.id===id);
+ if(!m)return;
+ const names=m.entries.map(e=>state.players.find(p=>p.id===e.id)?.name||"不明");
+ const current=m.entries.map(e=>e.points);
+ const values=[];
+ for(let i=0;i<3;i++){
+  const v=prompt(`${names[i]} の終了点を修正してください。`,current[i]);
+  if(v===null)return;
+  const n=Number(String(v).replace(/,/g,""));
+  if(!Number.isFinite(n)){alert("点数は数字で入力してください。");return}
+  values.push(n);
+ }
+ const expected=Number($("start").value)*3, total=values.reduce((a,b)=>a+b,0);
+ if(total!==expected&&!confirm(`修正後の点数合計は ${total.toLocaleString()} 点です。\n想定は ${expected.toLocaleString()} 点です。\nこのまま保存しますか？`))return;
+ if(new Set(values).size<3)return alert("同点時の順位処理には未対応です。順位が確定する点数に調整してください。");
+ const raw=m.entries.map((e,i)=>({id:e.id,points:values[i]}));
+ m.entries=calcEntries(raw);
+ m.edited=true;
+ save();render();
+ alert("対局履歴を修正しました。");
 }
 function deleteMatch(id){if(confirm("この対局を削除しますか？")){state.matches=state.matches.filter(m=>m.id!==id);save();render()}}
 function settle(){
@@ -172,6 +200,46 @@ function settle(){
 function exportData(){
  const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");
  a.href=URL.createObjectURL(blob);a.download="sanma-score-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href);
+}
+async function importData(event){
+ const input=event.target, file=input.files?.[0];
+ if(!file)return;
+ try{
+  const text=await file.text();
+  const data=JSON.parse(text);
+  if(!data || !Array.isArray(data.players) || !Array.isArray(data.matches))
+   throw new Error("このアプリのバックアップJSONではありません。");
+  if(data.settings!==undefined && (typeof data.settings!=="object" || data.settings===null))
+   throw new Error("設定データの形式が正しくありません。");
+  for(const p of data.players){
+   if(!p || typeof p.id!=="string" || typeof p.name!=="string")
+    throw new Error("参加者データの形式が正しくありません。");
+  }
+  for(const m of data.matches){
+   if(!m || !Array.isArray(m.entries))
+    throw new Error("対局データの形式が正しくありません。");
+   for(const e of m.entries){
+    if(!e || typeof e.id!=="string" || !Number.isFinite(Number(e.points)) ||
+       !Number.isFinite(Number(e.rank)) || !Number.isFinite(Number(e.score)))
+     throw new Error("対局明細の形式が正しくありません。");
+   }
+  }
+  if(!confirm(`「${file.name}」を読み込みます。\n現在のデータは置き換えられます。よろしいですか？`)){
+   input.value=""; return;
+  }
+  state=data;
+  if(!state.settings)state.settings={};
+  settingIds.forEach(id=>{
+   if(state.settings[id]!==undefined)$(id).value=state.settings[id];
+  });
+  save();
+  render();
+  alert(`JSONを読み込みました。\n参加者 ${state.players.length}人／対局 ${state.matches.length}件`);
+ }catch(err){
+  alert("JSONを読み込めませんでした。\n"+err.message);
+ }finally{
+  input.value="";
+ }
 }
 function resetAll(){if(confirm("参加者・対局履歴・設定をすべて消去しますか？")){localStorage.removeItem(KEY);state={players:[],matches:[]};location.reload()}}
 function render(){renderPlayers();renderSeats();renderStandings();renderHistory();$("settlement").innerHTML=""}

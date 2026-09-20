@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>三麻スコア集計機</title>
+<style>
+:root{--bg:#f4f6f5;--card:#fff;--ink:#18201c;--muted:#6d7771;--line:#dce3df;--accent:#176b47;--accent2:#e7f3ed;--danger:#b63a3a;--shadow:0 8px 24px rgba(20,40,30,.08)}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+header{background:#123c2b;color:#fff;padding:22px 16px} header h1{max-width:920px;margin:0 auto 5px;font-size:24px} header p{max-width:920px;margin:auto;opacity:.78;font-size:13px}
+main{max-width:920px;margin:auto;padding:16px 12px 70px}.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0;box-shadow:var(--shadow)}
+h2{font-size:18px;margin:0 0 14px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}
+input,select,button{font:inherit} input,select{width:100%;border:1px solid #cbd5cf;border-radius:10px;padding:11px;background:#fff;color:var(--ink)}
+button{border:0;border-radius:10px;padding:11px 14px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff}button.secondary{background:#e9eeeb;color:#26322c}button.danger{background:#f8e9e9;color:var(--danger)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.row button{flex:0 0 auto}.players{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.pill{background:var(--accent2);padding:7px 9px;border-radius:999px;font-size:13px}.pill button{padding:0 0 0 7px;background:none;color:#6a756f}
+.scoreRow{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin:8px 0}.hint,.warning{font-size:12px;color:var(--muted);margin-top:8px}.warning{color:var(--danger);font-weight:700}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:9px 7px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th:first-child,td:first-child{text-align:left}.scroll{overflow:auto}.pos{color:#087443;font-weight:700}.neg{color:#bd3535;font-weight:700}
+.match{border-top:1px solid var(--line);padding:11px 0}.match:first-child{border-top:0}.matchHead{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted)}.matchBody{margin-top:5px;font-size:13px}
+.big{font-size:18px}.settlement{padding:10px 0;border-bottom:1px solid var(--line)}.settlement:last-child{border:0}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+footer{text-align:center;color:var(--muted);font-size:11px;padding:10px}
+@media(max-width:560px){header h1{font-size:21px}.card{padding:13px;border-radius:13px}.scoreRow{grid-template-columns:1fr 1fr}th,td{padding:8px 5px;font-size:12px}}
+</style>
+</head>
+<body>
+<header><h1>🀄 三麻スコア集計機</h1><p>4人以上でもOK。毎局3人を選んで記録し、最後にまとめて精算。</p></header>
+<main>
+<section class="card">
+<h2>1. 初期設定</h2>
+<div class="grid">
+<div class="field"><label>レート（1000点あたり・円）</label><input id="rate" type="number" value="100"></div>
+<div class="field"><label>配給原点</label><input id="start" type="number" value="35000" step="100"></div>
+<div class="field"><label>返し点</label><input id="returnPoint" type="number" value="40000" step="100"></div>
+<div class="field"><label>1着ウマ</label><input id="uma1" type="number" value="20" step="1"></div>
+<div class="field"><label>2着ウマ</label><input id="uma2" type="number" value="0" step="1"></div>
+<div class="field"><label>3着ウマ</label><input id="uma3" type="number" value="-20" step="1"></div>
+</div>
+<div class="hint">スコアは「(終了点 − 返し点)÷1000 ＋ ウマ ＋ オカ」で計算。オカは配給原点と返し点の差額を1着に自動加算します。</div>
+</section>
+
+<section class="card">
+<h2>2. 参加者</h2>
+<div class="row"><input id="newPlayer" placeholder="名前を入力"><button onclick="addPlayer()">追加</button></div>
+<div id="players" class="players"></div>
+</section>
+
+<section class="card">
+<h2>3. 対局を記録</h2>
+<div id="seatInputs"></div>
+<div id="sumInfo" class="hint"></div>
+<div class="actions"><button onclick="recordMatch()">この半荘を記録</button></div>
+</section>
+
+<section class="card">
+<h2>本日の成績</h2>
+<div class="scroll"><table><thead><tr><th>名前</th><th>対局</th><th>1着</th><th>2着</th><th>3着</th><th>平均順位</th><th>スコア</th><th>収支</th></tr></thead><tbody id="standings"></tbody></table></div>
+</section>
+
+<section class="card">
+<h2>対局履歴</h2>
+<div id="history"><div class="hint">まだ対局記録がありません。</div></div>
+</section>
+
+<section class="card">
+<h2>4. 精算</h2>
+<button class="big" onclick="settle()">精算する</button>
+<div id="settlement" style="margin-top:12px"></div>
+</section>
+
+<section class="card">
+<h2>データ管理</h2>
+<div class="actions"><button class="secondary" onclick="exportData()">JSONを書き出す</button><button class="danger" onclick="resetAll()">本日のデータを全消去</button></div>
+</section>
+</main>
+<footer>データはこの端末のブラウザ内に自動保存されます。</footer>
+
+<script>
+const KEY="sanma-score-v1";
+let state={players:[],matches:[]};
+const $=id=>document.getElementById(id);
+const settingIds=["rate","start","returnPoint","uma1","uma2","uma3"];
+
+function load(){
+ try{const s=JSON.parse(localStorage.getItem(KEY));if(s)state=s}catch(e){}
+ if(state.settings) settingIds.forEach(id=>{if(state.settings[id]!==undefined)$(id).value=state.settings[id]});
+ render();
+}
+function save(){
+ state.settings={};settingIds.forEach(id=>state.settings[id]=Number($(id).value));
+ localStorage.setItem(KEY,JSON.stringify(state));
+}
+settingIds.forEach(id=>document.addEventListener("input",e=>{if(e.target.id===id){save();renderStandings()}}));
+
+function addPlayer(){
+ const name=$("newPlayer").value.trim();
+ if(!name)return;
+ if(state.players.some(p=>p.name===name))return alert("同じ名前が登録されています。");
+ state.players.push({id:crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random(),name});
+ $("newPlayer").value="";save();render();
+}
+$("newPlayer").addEventListener("keydown",e=>{if(e.key==="Enter")addPlayer()});
+
+function removePlayer(id){
+ if(state.matches.some(m=>m.entries.some(x=>x.id===id)))return alert("対局履歴がある参加者は削除できません。");
+ state.players=state.players.filter(p=>p.id!==id);save();render();
+}
+function renderPlayers(){
+ $("players").innerHTML=state.players.map(p=>`<span class="pill">${esc(p.name)}<button onclick="removePlayer('${p.id}')">×</button></span>`).join("");
+}
+function renderSeats(){
+ const old=[0,1,2].map(i=>({p:$("p"+i)?.value,score:$("s"+i)?.value}));
+ const opts='<option value="">選択</option>'+state.players.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("");
+ $("seatInputs").innerHTML=[0,1,2].map(i=>`<div class="scoreRow"><select id="p${i}" onchange="updateSum()">${opts}</select><input id="s${i}" type="number" step="100" placeholder="終了点" oninput="updateSum()"></div>`).join("");
+ old.forEach((x,i)=>{if(x.p)$("p"+i).value=x.p;if(x.score)$("s"+i).value=x.score});
+ updateSum();
+}
+function updateSum(){
+ const vals=[0,1,2].map(i=>Number($("s"+i)?.value||0));
+ const entered=vals.filter((_,i)=>$("s"+i)?.value!=="").length;
+ const total=vals.reduce((a,b)=>a+b,0), expected=Number($("start").value)*3;
+ $("sumInfo").className=entered===3&&total!==expected?"warning":"hint";
+ $("sumInfo").textContent=entered?`点数合計：${total.toLocaleString()}点 ／ 想定 ${expected.toLocaleString()}点`:"3人の終了点を入力してください。";
+}
+function calcEntries(raw){
+ const ret=Number($("returnPoint").value), start=Number($("start").value);
+ const umas=[Number($("uma1").value),Number($("uma2").value),Number($("uma3").value)];
+ const oka=(ret-start)*3/1000;
+ const sorted=[...raw].sort((a,b)=>b.points-a.points);
+ return sorted.map((x,i)=>({...x,rank:i+1,score:(x.points-ret)/1000+umas[i]+(i===0?oka:0)}));
+}
+function recordMatch(){
+ if(state.players.length<3)return alert("参加者を3人以上登録してください。");
+ const raw=[0,1,2].map(i=>({id:$("p"+i).value,points:Number($("s"+i).value)}));
+ if(raw.some(x=>!x.id||!Number.isFinite(x.points)))return alert("3人の名前と終了点を入力してください。");
+ if(new Set(raw.map(x=>x.id)).size<3)return alert("同じ参加者を重複して選べません。");
+ const expected=Number($("start").value)*3, total=raw.reduce((a,b)=>a+b.points,0);
+ if(total!==expected&&!confirm(`点数合計が ${total.toLocaleString()} 点です。想定は ${expected.toLocaleString()} 点です。\nこのまま記録しますか？`))return;
+ const points=raw.map(x=>x.points);
+ if(new Set(points).size<3)return alert("同点時の順位処理には未対応です。順位が確定する点数に調整してください。");
+ state.matches.push({id:Date.now(),time:new Date().toLocaleString("ja-JP"),entries:calcEntries(raw)});
+ save();render();
+ [0,1,2].forEach(i=>$("s"+i).value="");updateSum();
+}
+function stats(){
+ const out={};state.players.forEach(p=>out[p.id]={name:p.name,games:0,w:[0,0,0],rankSum:0,score:0});
+ state.matches.forEach(m=>m.entries.forEach(e=>{if(!out[e.id])return;let x=out[e.id];x.games++;x.w[e.rank-1]++;x.rankSum+=e.rank;x.score+=e.score}));
+ return Object.values(out);
+}
+function renderStandings(){
+ const rate=Number($("rate").value);
+ $("standings").innerHTML=stats().map(x=>{const yen=Math.round(x.score*rate);return `<tr><td>${esc(x.name)}</td><td>${x.games}</td><td>${x.w[0]}</td><td>${x.w[1]}</td><td>${x.w[2]}</td><td>${x.games?(x.rankSum/x.games).toFixed(2):"-"}</td><td class="${x.score>=0?"pos":"neg"}">${signed(x.score,1)}</td><td class="${yen>=0?"pos":"neg"}">${signed(yen,0)}円</td></tr>`}).join("");
+}
+function renderHistory(){
+ if(!state.matches.length){$("history").innerHTML='<div class="hint">まだ対局記録がありません。</div>';return}
+ $("history").innerHTML=[...state.matches].reverse().map((m,ri)=>{
+  const idx=state.matches.length-ri;
+  const body=m.entries.map(e=>{const p=state.players.find(p=>p.id===e.id);return `${e.rank}着 ${esc(p?.name||"削除済")} ${e.points.toLocaleString()}点 <b>${signed(e.score,1)}</b>`}).join("　");
+  return `<div class="match"><div class="matchHead"><span>第${idx}戦　${esc(m.time)}</span><button class="danger" onclick="deleteMatch(${m.id})">削除</button></div><div class="matchBody">${body}</div></div>`
+ }).join("");
+}
+function deleteMatch(id){if(confirm("この対局を削除しますか？")){state.matches=state.matches.filter(m=>m.id!==id);save();render()}}
+function settle(){
+ const rate=Number($("rate").value);
+ let arr=stats().map(x=>({name:x.name,amount:Math.round(x.score*rate)}));
+ const total=arr.reduce((a,b)=>a+b.amount,0);
+ let debt=arr.filter(x=>x.amount<0).map(x=>({...x,amount:-x.amount})).sort((a,b)=>b.amount-a.amount);
+ let cred=arr.filter(x=>x.amount>0).map(x=>({...x})).sort((a,b)=>b.amount-a.amount);
+ let transfers=[],i=0,j=0;
+ while(i<debt.length&&j<cred.length){let v=Math.min(debt[i].amount,cred[j].amount);if(v>0)transfers.push(`${esc(debt[i].name)} → ${esc(cred[j].name)}：<b>${v.toLocaleString()}円</b>`);debt[i].amount-=v;cred[j].amount-=v;if(!debt[i].amount)i++;if(!cred[j].amount)j++}
+ const balances=arr.sort((a,b)=>b.amount-a.amount).map(x=>`<div class="settlement">${esc(x.name)}：<span class="${x.amount>=0?"pos":"neg"}">${signed(x.amount,0)}円</span></div>`).join("");
+ $("settlement").innerHTML=`<h3>最終収支</h3>${balances}<h3>送金案</h3>${transfers.length?transfers.map(x=>`<div class="settlement">${x}</div>`).join(""):'<div class="hint">送金はありません。</div>'}${total!==0?`<div class="warning">丸め後の収支合計が ${signed(total,0)}円 です。</div>`:""}`;
+}
+function exportData(){
+ const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");
+ a.href=URL.createObjectURL(blob);a.download="sanma-score-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href);
+}
+function resetAll(){if(confirm("参加者・対局履歴・設定をすべて消去しますか？")){localStorage.removeItem(KEY);state={players:[],matches:[]};location.reload()}}
+function render(){renderPlayers();renderSeats();renderStandings();renderHistory();$("settlement").innerHTML=""}
+function signed(v,d){const n=Number(v);return (n>=0?"+":"")+n.toFixed(d)}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+load();
+</script>
+</body>
+</html>

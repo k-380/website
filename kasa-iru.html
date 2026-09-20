@@ -24,13 +24,14 @@
   <div id="icon" class="icon">📍</div>
   <div id="spin" class="spinner"></div>
   <h1 id="answer">判定中</h1>
-  <div id="sub">現在地を取得して、これから6時間の雨を確認しています。</div>
+  <div id="location" style="margin-top:14px;font-size:18px;font-weight:700">📍 現在地を取得中…</div>
+  <div id="sub">現在地を取得して、雨を確認しています。</div>
   <div id="details"></div>
   <button id="retry" hidden>もう一度判定</button>
 </main>
 <script>
 const $=id=>document.getElementById(id);
-const answer=$("answer"), sub=$("sub"), details=$("details"), icon=$("icon"), spin=$("spin"), retry=$("retry");
+const answer=$("answer"), sub=$("sub"), details=$("details"), icon=$("icon"), spin=$("spin"), retry=$("retry"), locationEl=$("location");
 
 function fail(msg){
   spin.hidden=true; icon.textContent="⚠️"; answer.textContent="判定できません"; answer.className="err";
@@ -38,22 +39,60 @@ function fail(msg){
 }
 async function judge(lat,lon,accuracy){
   try{
+    // 緯度経度から市区町村名を取得
+    locationEl.textContent = `📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    try {
+      const geoUrl = new URL("https://nominatim.openstreetmap.org/reverse");
+      geoUrl.search = new URLSearchParams({
+        lat: lat, lon: lon, format: "jsonv2",
+        "accept-language": "ja", zoom: "10"
+      });
+      const gr = await fetch(geoUrl, {headers: {"Accept": "application/json"}});
+      if (gr.ok) {
+        const g = await gr.json();
+        const a = g.address || {};
+        const city = a.city || a.town || a.village || a.municipality || a.county;
+        const pref = a.state;
+        if (city || pref) locationEl.textContent = `📍 ${[pref, city].filter(Boolean).join(" ")}`;
+      }
+    } catch (_) {}
+
     const url=new URL("https://api.open-meteo.com/v1/forecast");
     url.search=new URLSearchParams({
       latitude:lat, longitude:lon,
       hourly:"precipitation_probability,precipitation,weather_code",
-      forecast_hours:"8", timezone:"auto"
+      forecast_days:"2", timezone:"auto"
     });
     const r=await fetch(url);
     if(!r.ok) throw new Error();
     const d=await r.json();
-    const now=Date.now();
+    const nowDate = new Date();
+    const now = nowDate.getTime();
+    const hour = nowDate.getHours();
+
+    // 判定時間帯
+    // 09:00まで       → 当日20:00まで
+    // 09:00〜18:00未満 → 現在から6時間
+    // 18:00以降       → 翌日20:00まで
+    let endDate;
+    if (hour < 9) {
+      endDate = new Date(nowDate);
+      endDate.setHours(20, 0, 0, 0);
+    } else if (hour < 18) {
+      endDate = new Date(now + 6 * 60 * 60 * 1000);
+    } else {
+      endDate = new Date(nowDate);
+      endDate.setDate(endDate.getDate() + 1);
+      endDate.setHours(20, 0, 0, 0);
+    }
+    const end = endDate.getTime();
+
     const rows=d.hourly.time.map((t,i)=>({
       t:new Date(t).getTime(),
       p:d.hourly.precipitation_probability[i] ?? 0,
       mm:d.hourly.precipitation[i] ?? 0,
       code:d.hourly.weather_code[i] ?? 0
-    })).filter(x=>x.t>=now-30*60e3).slice(0,6);
+    })).filter(x=>x.t>=now-30*60e3 && x.t<=end);
     if(!rows.length) throw new Error();
 
     const maxP=Math.max(...rows.map(x=>x.p));
@@ -63,21 +102,22 @@ async function judge(lat,lon,accuracy){
     spin.hidden=true;
     if(total>=0.5 || maxP>=50 || rainy){
       icon.textContent="☔"; answer.textContent="傘、持っていこう"; answer.className="yes";
-      sub.textContent="これから6時間に雨の可能性があります。";
+      sub.textContent="判定対象時間内に雨の可能性があります。";
     }else if(maxP>=30 || total>0){
       icon.textContent="🌂"; answer.textContent="折りたたみ推奨"; answer.className="maybe";
       sub.textContent="強い雨の見込みは低めですが、念のためあると安心です。";
     }else{
       icon.textContent="☀️"; answer.textContent="傘はいらなそう"; answer.className="no";
-      sub.textContent="これから6時間は雨の可能性が低めです。";
+      sub.textContent="判定対象時間内は雨の可能性が低めです。";
     }
-    details.textContent=`最大降水確率 ${Math.round(maxP)}% ・ 予想降水量 ${total.toFixed(1)} mm / 6h ・ 位置精度 約${Math.round(accuracy)}m`;
+    const fmt = dt => `${dt.getMonth()+1}/${dt.getDate()} ${String(dt.getHours()).padStart(2,"0")}:${String(dt.getMinutes()).padStart(2,"0")}`;
+    details.textContent=`判定範囲：現在〜${fmt(endDate)} ・ 最大降水確率 ${Math.round(maxP)}% ・ 予想降水量 ${total.toFixed(1)} mm ・ 位置精度 約${Math.round(accuracy)}m`;
     retry.hidden=false; retry.textContent="更新";
   }catch(e){ fail("天気データを取得できませんでした。通信状態を確認してください。"); }
 }
 function start(){
   retry.hidden=true; spin.hidden=false; answer.textContent="判定中"; answer.className="";
-  icon.textContent="📍"; sub.textContent="現在地を取得して、これから6時間の雨を確認しています。"; details.textContent="";
+  icon.textContent="📍"; locationEl.textContent="📍 現在地を取得中…"; sub.textContent="現在地を取得して、雨を確認しています。"; details.textContent="";
   if(!navigator.geolocation) return fail("このブラウザは位置情報取得に対応していません。");
   navigator.geolocation.getCurrentPosition(
     p=>judge(p.coords.latitude,p.coords.longitude,p.coords.accuracy),

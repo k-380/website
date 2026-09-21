@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>GUNSHIP: RECAPTURE</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#080b0d;color:#e8eef2;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;overflow:hidden}
+  #wrap{height:100%;display:flex;flex-direction:column;max-width:900px;margin:auto;background:#0b1013}
+  #hud{padding:8px 10px;background:#11181c;border-bottom:1px solid #344047;font-family:ui-monospace,monospace}
+  .row{display:flex;align-items:center;gap:10px}
+  .grow{flex:1}
+  #bar{height:12px;background:#273138;border:1px solid #56636a;overflow:hidden}
+  #barFill{height:100%;width:100%;background:#d8e3e8}
+  #stats{font-size:13px;margin-top:5px;display:flex;justify-content:space-between;gap:8px}
+  #game{display:block;width:100%;flex:1;min-height:0;touch-action:none;background:#0d1214;cursor:crosshair}
+  #msg{position:absolute;left:50%;top:48%;transform:translate(-50%,-50%);text-align:center;
+       font:700 24px ui-monospace,monospace;pointer-events:none;text-shadow:0 2px 5px #000}
+  #msg small{display:block;font-size:13px;font-weight:500;margin-top:8px}
+  #footer{height:46px;display:flex;align-items:center;justify-content:center;background:#11181c;border-top:1px solid #344047}
+  button{font:700 15px ui-monospace,monospace;color:#eef5f7;background:#202a2f;border:1px solid #68767d;border-radius:5px;padding:8px 18px}
+  button:active{transform:translateY(1px)}
+  .bad{color:#ff7d7d}
+  #stage{position:relative;flex:1;min-height:0;display:flex}
+</style>
+
+<style>
+#modeSelect{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;color:#eef;font-family:ui-monospace,monospace}
+#modePanel{width:min(92vw,460px);padding:24px;border:1px solid rgba(180,220,255,.45);background:rgba(10,18,28,.96);text-align:center;box-shadow:0 0 40px rgba(100,180,255,.12)}
+#modePanel h2{margin:0 0 8px;font-size:22px}#modePanel p{opacity:.72;font-size:12px;line-height:1.6}
+.modeBtn{display:block;width:100%;margin:10px 0;padding:14px 10px;font:700 14px ui-monospace,monospace;background:#172536;color:#eef;border:1px solid #66809a;border-radius:4px}
+.modeBtn small{display:block;font-weight:400;opacity:.65;margin-top:4px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div class="row"><span>GROUND FORCE</span><div id="bar" class="grow"><div id="barFill"></div></div><span id="hp">100%</span></div>
+    <div id="stats"><span id="score">KILLS 0</span><span id="ff">FRIENDLY FIRE 0/2</span><span id="timer">NEXT CASUALTY 10.0</span></div>
+  </div>
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div id="msg">TAP TO START<small>敵に奪われた中央拠点を奪還せよ<br>3方向の地上軍をガンシップから援護<br>拠点への誤射は即敗北</small></div>
+  </div>
+  <div id="footer" style="height:auto;min-height:46px;gap:8px;flex-wrap:wrap;padding:6px">
+  <span style="font:12px ui-monospace,monospace">ALT</span>
+  <button id="altDown">−</button><span id="altVal" style="min-width:48px;text-align:center;font:12px ui-monospace,monospace">5000m</span><button id="altUp">＋</button>
+  <span id="spdVal" style="min-width:72px;text-align:center;font:12px ui-monospace,monospace;opacity:.65">SPD 300km/h</span>
+  <span style="font:12px ui-monospace,monospace;margin-left:8px">BOMB</span>
+  <button id="bombSmall" style="display:none">S</button><button id="bombMed" style="display:none">M</button><button id="bombLarge" style="display:none">L</button>
+  <span id="bombVal" style="min-width:54px;text-align:center;font:12px ui-monospace,monospace">MEDIUM</span>
+  <button id="restart" style="margin-left:8px">RESTART</button>
+</div>
+</div>
+
+<div id="modeSelect">
+ <div id="modePanel">
+  <h2>SELECT DIFFICULTY</h2>
+  <p>使用可能な爆弾は作戦開始時に固定されます。</p>
+  <button class="modeBtn" data-mode="easy">EASY<small>L爆弾固定 — 爆発半径52</small></button>
+  <button class="modeBtn" data-mode="normal">NORMAL<small>M爆弾固定 — 爆発半径34</small></button>
+  <button class="modeBtn" data-mode="hard">HARD<small>S爆弾固定 — 爆発半径22</small></button>
+<button class="modeBtn" data-mode="extreme">EXTREME<small>S爆弾固定 — 対空ミサイル射手が出現</small></button>
+ </div>
+</div>
+<script>
+(()=>{
+const c=document.getElementById('game'),x=c.getContext('2d'),modeSelect=document.getElementById('modeSelect');
+const msg=document.getElementById('msg'), hpEl=document.getElementById('hp'),
+ scoreEl=document.getElementById('score'),ffEl=document.getElementById('ff'),timerEl=document.getElementById('timer'),
+ barFill=document.getElementById('barFill'), restart=document.getElementById('restart'),
+ altVal=document.getElementById('altVal'),spdVal=document.getElementById('spdVal'),
+ altDown=document.getElementById('altDown'),altUp=document.getElementById('altUp'),
+ bombSmall=document.getElementById('bombSmall'),bombMed=document.getElementById('bombMed'),
+ bombLarge=document.getElementById('bombLarge'),bombVal=document.getElementById('bombVal');
+let W,H,dpr=1,last=0,running=false,started=false;
+let allies=[],enemies=[],bombs=[],blasts=[],marks=[],terrain=[],ambushes=[];
+let hp=100,kills=0,ff=0,sinceKill=0,spawnT=0,worldTime=0,reload=0,reloadMax=3,killConfirm=0,killConfirmCount=0;
+let bonusStage=false,bonusTime=30,radioT=0,radioText='',beamT=0,beamAngle=0,beamSweep=false,beamSweepTime=0,beamHit=new Set(),finalScore=null;
+const casualtyEvery=10,bombDelay=1.15,blastRadius=34;
+const bombTypes={
+ small:{name:'SMALL',radius:22,reload:2.2},
+ medium:{name:'MEDIUM',radius:34,reload:3.0},
+ large:{name:'LARGE',radius:52,reload:4.2}
+};
+let selectedBomb='medium',selectedMode=null,manpads=null,manpadsSpawnT=0;
+const WORLD=1900, minEnemyAlly=82,BASE_X=WORLD/2,BASE_Y=WORLD/2,BASE_R=62;
+let altitude=5000, targetAltitude=5000, airspeed=300; // metres, km/h
+const ALT_MIN=500,ALT_MAX=5000,ALT_STEP=250,SPD_MIN=150,SPD_MAX=600,SPD_STEP=50;
+let cam={x:WORLD/2,y:WORLD/2,a:0};
+
+function resize(){dpr=Math.min(devicePixelRatio||1,2);const r=c.getBoundingClientRect();W=r.width;H=r.height;c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0)}
+addEventListener('resize',resize);resize();
+function rng(n){let z=Math.sin(n*91.733+17.21)*43758.5453;return z-Math.floor(z)}
+function buildTerrain(){
+ terrain=[];
+ for(let i=0;i<75;i++){
+  terrain.push({type:'tree',x:80+rng(i)*1740,y:80+rng(i+111)*1740,r:5+rng(i+23)*8});
+ }
+ for(let i=0;i<13;i++){
+  terrain.push({type:'field',x:100+rng(i+300)*1650,y:100+rng(i+400)*1650,w:70+rng(i+500)*150,h:45+rng(i+600)*100,a:rng(i+700)*Math.PI});
+ }
+ for(let i=0;i<9;i++){
+  terrain.push({type:'house',x:100+rng(i+800)*1650,y:100+rng(i+900)*1650,w:24+rng(i+1000)*28,h:18+rng(i+1100)*24,a:rng(i+1200)*Math.PI});
+ }
+}
+function unit(team){
+ let u={team,x:WORLD*.25+Math.random()*WORLD*.5,y:WORLD*.25+Math.random()*WORLD*.5,vx:0,vy:0,r:team==='ally'?7:6,dead:false,wander:Math.random()*6,attackCd:Math.random()*1.5};
+ if(team==='enemy'){
+   for(let tries=0;tries<30;tries++){
+    u.x=150+Math.random()*(WORLD-300);u.y=150+Math.random()*(WORLD-300);
+    if(allies.every(a=>Math.hypot(a.x-u.x,a.y-u.y)>minEnemyAlly*1.4))break;
+   }
+ }
+ return u;
+}
+function reset(){
+ allies=[];enemies=[];bombs=[];blasts=[];marks=[];buildTerrain();
+ hp=100;kills=0;ff=0;sinceKill=0;spawnT=0;worldTime=0;reload=0;killConfirm=0;killConfirmCount=0;bonusStage=false;bonusTime=30;radioT=0;radioText='';beamT=0;beamAngle=0;beamSweep=false;beamSweepTime=0;beamHit=new Set();finalScore=null;manpads=null;manpadsSpawnT=0;cam={x:WORLD/2,y:WORLD/2,a:0};last=performance.now();
+ // Three friendly assault columns, five vehicles each.
+ const starts=[
+   {x:BASE_X,y:BASE_Y-690},
+   {x:BASE_X-610,y:BASE_Y+410},
+   {x:BASE_X+610,y:BASE_Y+410}
+ ];
+ for(const st of starts){
+   for(let i=0;i<5;i++){
+     let u=unit('ally');
+     const spread=[[-70,-35],[55,-58],[-38,48],[78,42],[0,86]][i];
+     u.x=st.x+spread[0];u.y=st.y+spread[1];
+     u.assault=true;u.entered=false;allies.push(u);
+   }
+ }
+ // Enemies begin hidden in ambush positions around the route/base.
+ enemies=[];
+ ambushes=[];
+ for(let i=0;i<14;i++){
+   ambushes.push({x:100+Math.random()*(WORLD-200),y:100+Math.random()*(WORLD-200),revealed:false});
+ }
+ running=false;started=false;updateHUD();
+ const modeName=selectedMode==='easy'?'EASY / L BOMB':selectedMode==='normal'?'NORMAL / M BOMB':selectedMode==='hard'?'HARD / S BOMB':'EXTREME / S BOMB + MANPADS';
+ msg.innerHTML='TAP TO START<small>'+modeName+'<br>敵に奪われた中央拠点を奪還せよ<br>3方向の地上軍をガンシップから援護<br>誤射カウントは作戦終了まで累積</small>';msg.style.display='block';
+}
+function start(){if(!started){started=true;running=true;last=performance.now();msg.style.display='none'}}
+function nearest(u,arr){let best=null,bd=1e12;for(const v of arr){if(v.dead||v.entered)continue;let d=(u.x-v.x)**2+(u.y-v.y)**2;if(d<bd){bd=d;best=v}}return best}
+function moveUnits(dt){
+ const liveA=allies.filter(a=>!a.dead&&!a.entered),liveE=enemies.filter(e=>!e.dead);
+ for(const u of [...liveA,...liveE]){
+  const foes=u.team==='ally'?liveE:liveA,t=nearest(u,foes);
+  let ax=0,ay=0;
+  if(u.team==='ally'){
+    let dx=BASE_X-u.x,dy=BASE_Y-u.y,d=Math.hypot(dx,dy)||1;
+    if(d>BASE_R+28){ax+=dx/d*7.5;ay+=dy/d*7.5}
+    // Keep some distance from visible enemies while continuing the assault.
+    if(t){let ex=t.x-u.x,ey=t.y-u.y,ed=Math.hypot(ex,ey)||1;if(ed<minEnemyAlly+18){let k=(minEnemyAlly+18-ed)/30;ax-=ex/ed*55*k;ay-=ey/ed*55*k}}
+  }else if(t){
+    let dx=t.x-u.x,dy=t.y-u.y,d=Math.hypot(dx,dy)||1;
+    if(d>105){ax+=dx/d*16;ay+=dy/d*16}
+    if(d<minEnemyAlly+18){let k=(minEnemyAlly+18-d)/30;ax-=dx/d*65*k;ay-=dy/d*65*k}
+    if(d<180){ax+=(-dy/d)*-7;ay+=(dx/d)*-7}
+  }
+  // Same-team spacing.
+  const mates=u.team==='ally'?liveA:liveE;
+  for(const v of mates){if(v===u)continue;let dx=u.x-v.x,dy=u.y-v.y,d=Math.hypot(dx,dy)||1;if(d<58){ax+=dx/d*34;ay+=dy/d*34}}
+  u.wander+=dt;ax+=Math.sin(u.wander*1.2)*2;ay+=Math.cos(u.wander*.9)*2;
+  u.vx=(u.vx+ax*dt)*.94;u.vy=(u.vy+ay*dt)*.94;
+  // Enemy movement accelerates continuously as the battle goes on.
+  // Starts near the old speed and rises smoothly, capped so it stays playable.
+  const enemyRamp=Math.min(4.5,1+worldTime/45);
+  let sp=Math.hypot(u.vx,u.vy),max=u.team==='enemy'?22*enemyRamp:9;
+  if(u.team==='enemy'){u.vx*=1+dt*.22*enemyRamp;u.vy*=1+dt*.22*enemyRamp}
+  sp=Math.hypot(u.vx,u.vy);
+  if(sp>max){u.vx*=max/sp;u.vy*=max/sp}
+  u.x=Math.max(40,Math.min(WORLD-40,u.x+u.vx*dt));u.y=Math.max(40,Math.min(WORLD-40,u.y+u.vy*dt));
+ }
+}
+function explode(b){
+ blasts.push({x:b.x,y:b.y,t:0,radius:b.radius});
+ if(manpads&&Math.hypot(manpads.x-b.x,manpads.y-b.y)<=b.radius){
+   blasts.push({x:manpads.x,y:manpads.y,t:0,small:true});
+   manpads=null;kills++;radioT=1.5;radioText='MISSILE TEAM NEUTRALIZED';
+ }
+ // The occupied objective must survive the recapture.
+ if(Math.hypot(b.x-BASE_X,b.y-BASE_Y)<=BASE_R+b.radius){
+   end('MISSION FAILED','FRIENDLY FIRE ON OBJECTIVE');return;
+ }
+ let ek=0,ak=0;
+ for(const u of enemies)if(!u.dead&&Math.hypot(u.x-b.x,u.y-b.y)<=b.radius){u.dead=true;ek++;kills++}
+ for(const u of allies)if(!u.dead&&Math.hypot(u.x-b.x,u.y-b.y)<=b.radius){u.dead=true;ak++;hp=Math.max(0,hp-10);radioT=2.0;radioText='GROUND FORCE: 味方がやられた！'}
+ if(ak>0){ff++;flash('rgba(255,60,60,.35)');if(ff>=2){end('GAME OVER','貴殿は不適格のため、補欠の銃撃手に交代する');return}}
+ if(ek>0){sinceKill=0;updateHUD();}
+}
+function flash(color){blasts.push({screen:true,t:0,color})}
+function update(dt){
+ if(!running)return;worldTime+=dt;sinceKill+=dt;spawnT+=dt;
+ reload=Math.max(0,reload-dt);killConfirm=0;radioT=Math.max(0,radioT-dt);beamT=Math.max(0,beamT-dt);
+ const climbRate=125; // m/s
+ if(altitude<targetAltitude) altitude=Math.min(targetAltitude,altitude+climbRate*dt);
+ else if(altitude>targetAltitude) altitude=Math.max(targetAltitude,altitude-climbRate*dt);
+ flightHUD();
+ // Aircraft loiters in a broad, slow orbit. Camera heading also turns continuously.
+ const sf=airspeed/300;
+ const orbit=300;
+ const oa=worldTime*.018*sf;
+ cam.x=BASE_X+Math.cos(oa)*orbit;
+ cam.y=BASE_Y+Math.sin(oa)*orbit;
+ // Gunship looks inward while orbiting the objective.
+ cam.a=oa+Math.PI/2;
+ if(!beamSweep) moveUnits(dt);
+ // Ambushes reveal only when a friendly column approaches.
+ for(const h of ambushes){
+   if(beamSweep||h.revealed)continue;
+   const nearestFriendly=Math.min(...allies.filter(a=>!a.dead).map(a=>Math.hypot(a.x-h.x,a.y-h.y)),9999);
+   // Reveal while still safely outside ground-attack range, giving the player reaction time.
+   if(nearestFriendly<300 && nearestFriendly>190){
+     h.revealed=true;
+     let e=unit('enemy');e.x=h.x;e.y=h.y;enemies.push(e);
+   }
+ }
+ // EXTREME: isolated shoulder-fired missile teams can threaten the gunship.
+ if(selectedMode==='extreme'&&!beamSweep){
+   if(!manpads){
+     manpadsSpawnT+=dt;
+     if(manpadsSpawnT>=12){
+       let mx,my,ok=false;
+       for(let tries=0;tries<80&&!ok;tries++){
+         // SAM teams only appear within 500 of the objective, but not inside the base itself.
+         const a=Math.random()*Math.PI*2;
+         const r=(BASE_R+100)+Math.sqrt(Math.random())*(500-(BASE_R+100));
+         mx=BASE_X+Math.cos(a)*r;my=BASE_Y+Math.sin(a)*r;
+         ok=mx>60&&mx<WORLD-60&&my>60&&my<WORLD-60&&Math.hypot(mx-BASE_X,my-BASE_Y)<=500;
+       }
+       manpads={x:mx,y:my,t:8};
+       manpadsSpawnT=-Math.random()*12;
+       radioT=2.0;radioText='WARNING: MISSILE TEAM DETECTED';
+     }
+   }else{
+     manpads.t-=dt;
+     if(manpads.t<=0){
+       end('MISSION FAILED','GUNSHIP LOST — ENEMY MISSILE LAUNCH');return;
+     }
+   }
+ }
+ // Friendly support request: nearby threats are called out and highlighted.
+ const supportRange=235;
+ for(const e of enemies){
+   if(beamSweep)break;
+   if(e.dead)continue;
+   e.alert=Math.max(0,(e.alert||0)-dt);
+   const a=nearest(e,allies);
+   if(a && Math.hypot(e.x-a.x,e.y-a.y)<=supportRange){
+     if((e.radioCd||0)<=0){
+       e.alert=1.25;e.radioCd=3.2;radioT=1.8;
+       radioText='GROUND FORCE: 敵接近！ 支援射撃を要請！';
+     }
+   }
+   e.radioCd=Math.max(0,(e.radioCd||0)-dt);
+ }
+ // Ground combat: enemies that get close enough fire on the friendly force.
+ // This is independent of the general no-kill timer, so letting enemies close is dangerous.
+ const attackRange=115;
+ for(const e of enemies){if(beamSweep)break;
+   if(e.dead)continue;
+   e.attackCd=Math.max(0,e.attackCd-dt);
+   const a=nearest(e,allies);
+   if(a && !a.dead && Math.hypot(e.x-a.x,e.y-a.y)<=attackRange && e.attackCd<=0){
+     e.attackCd=Math.max(.65,2.25-worldTime/100);
+     // One hit removes a ground unit and also damages overall ground-force strength.
+     a.dead=true; hp=Math.max(0,hp-8);radioT=2.0;radioText='GROUND FORCE: 味方がやられた！';
+     blasts.push({x:a.x,y:a.y,t:0,small:true});
+   }
+ }
+ for(const b of bombs){b.t+=dt;if(!b.done&&b.t>=b.delay){b.done=true;explode(b)}}
+ bombs=bombs.filter(b=>b.t<b.delay+.12);for(const q of blasts)q.t+=dt;blasts=blasts.filter(q=>q.t<.55);
+ marks.forEach(m=>m.t+=dt);marks=marks.filter(m=>m.t<.8);
+ // Enemy pressure rises as the leading friendly force approaches the objective.
+ const liveAllies=allies.filter(a=>!a.dead);
+ let closest=900;
+ for(const a of liveAllies) closest=Math.min(closest,Math.hypot(a.x-BASE_X,a.y-BASE_Y));
+ const approach=Math.max(0,Math.min(1,1-(closest-BASE_R)/720));
+ const enemyCap=Math.round(10+approach*36);
+ const spawnInterval=3.0-approach*2.35;
+ if(!beamSweep && spawnT>spawnInterval){
+   spawnT=0;
+   let live=enemies.filter(e=>!e.dead).length;
+   let batch=1+Math.floor(approach*3);
+   while(batch-->0 && live<enemyCap){
+     let ex=0,ey=0,ok=false;
+     for(let tries=0;tries<40&&!ok;tries++){
+       ex=80+Math.random()*(WORLD-160);ey=80+Math.random()*(WORLD-160);
+       const spawnSafeDistance=245; // attack range (115) + a substantial approach buffer
+       ok=Math.hypot(ex-BASE_X,ey-BASE_Y)>BASE_R+90 &&
+          liveAllies.every(a=>Math.hypot(a.x-ex,a.y-ey)>spawnSafeDistance);
+     }
+     let e=unit('enemy');e.x=ex;e.y=ey;enemies.push(e);live++;
+   }
+ }
+ 
+ // The first arrival captures the objective and starts the bonus escort stage.
+ for(const a of allies){
+   if(!a.dead&&!a.entered&&Math.hypot(a.x-BASE_X,a.y-BASE_Y)<=BASE_R+24){
+     a.entered=true;a.vx=a.vy=0;
+     if(!bonusStage){bonusStage=true;bonusTime=30;radioT=2.6;radioText='OBJECTIVE SECURED — BONUS STAGE: 30秒間援護せよ';}
+   }
+ }
+ const survivors=allies.filter(a=>!a.dead);
+ if(bonusStage){
+   bonusTime=Math.max(0,bonusTime-dt);
+   if(bonusTime<=0&&!beamSweep){
+     beamSweep=true;beamSweepTime=0;beamAngle=-Math.PI;beamT=1;
+     // Finale phase: freeze ground combat so normal game-over logic cannot interrupt the sweep.
+     for(const e of enemies){e.vx=0;e.vy=0;e.attackCd=999;}
+     for(const a of allies){a.vx=0;a.vy=0;}
+     radioT=2.2;radioText='BASE CONTROL: 殲滅レーザー照射開始';
+   }
+ }
+ if(beamSweep){
+   const sweepDuration=10.0;
+   const beamRange=500;
+
+   // Use a continuous 0..2PI sweep axis. This avoids the atan2 -PI/+PI wrap bug.
+   const prevProgress=Math.min(Math.PI*2,(beamSweepTime/sweepDuration)*Math.PI*2);
+   beamSweepTime+=dt;
+   const progress=Math.min(Math.PI*2,(beamSweepTime/sweepDuration)*Math.PI*2);
+   beamAngle=-Math.PI+progress;
+
+   for(const e of enemies){
+     if(e.dead||beamHit.has(e))continue;
+     const dx=e.x-BASE_X,dy=e.y-BASE_Y,d=Math.hypot(dx,dy);
+     if(d>beamRange)continue;
+     const sweepA=(Math.atan2(dy,dx)+Math.PI+Math.PI*2)%(Math.PI*2);
+     if(sweepA>=prevProgress-.05 && sweepA<=progress+.05){
+       e.dead=true;beamHit.add(e);kills++;
+       blasts.push({x:e.x,y:e.y,t:0,small:true});
+     }
+   }
+
+   if(beamSweepTime>=sweepDuration){
+     // Cleanup guarantees that every enemy within radius 1000 is counted.
+     for(const e of enemies){
+       if(e.dead||beamHit.has(e))continue;
+       if(Math.hypot(e.x-BASE_X,e.y-BASE_Y)<=beamRange){
+         e.dead=true;beamHit.add(e);kills++;
+         blasts.push({x:e.x,y:e.y,t:0,small:true});
+       }
+     }
+     const sv=allies.filter(a=>!a.dead).length;
+     finalScore=kills*sv;running=false;beamSweep=false;beamAngle=Math.PI;
+     msg.innerHTML='MISSION COMPLETE<small>ANNIHILATION SWEEP COMPLETE<br>LASER KILLS '+beamHit.size+'<br>KILLS '+kills+' × SURVIVORS '+sv+'<br><b>FINAL SCORE '+finalScore+'</b>'+(ff===1?'<br><br><b>誤射の理由について軍法会議で説明せよ！</b>':'')+'<br>— TAP RESTART</small>';
+     msg.style.display='block';updateHUD();return;
+   }
+ }
+ if(!beamSweep&&(hp<=0||!allies.some(a=>!a.dead)))end('GAME OVER','GROUND FORCE DESTROYED');updateHUD();
+}
+function end(a,b){running=false;const sv=allies.filter(u=>!u.dead).length;finalScore=kills*sv;const court=(ff===1&&a!=='GAME OVER')?'<br><br><b>誤射の理由について軍法会議で説明せよ！</b>':'';msg.innerHTML=a+'<small>'+b+'<br>KILLS '+kills+' × SURVIVORS '+sv+'<br><b>SCORE '+finalScore+'</b>'+court+'<br>— TAP RESTART</small>';msg.style.display='block'}
+function updateHUD(){hpEl.textContent=Math.ceil(hp)+'%';barFill.style.width=hp+'%';let la=allies.filter(a=>!a.dead),near=900;
+ for(const a of la)near=Math.min(near,Math.hypot(a.x-BASE_X,a.y-BASE_Y));
+ const prog=Math.max(0,Math.min(100,Math.round((1-(near-BASE_R)/720)*100)));
+ scoreEl.textContent=(bonusStage?'BONUS ':'')+'ADVANCE '+prog+'%  KILLS '+kills;ffEl.textContent='FRIENDLY FIRE '+ff+'/2';ffEl.className=ff?'bad':'';timerEl.textContent='ENEMY ×'+Math.min(4.5,1+worldTime/45).toFixed(1)}
+function zoom(){return 1000/altitude}
+function worldTransform(){
+ const z=zoom();
+ x.translate(W/2,H/2);x.scale(z,z);x.rotate(-cam.a);x.translate(-cam.x,-cam.y);
+}
+function screenToWorld(sx,sy){
+ let z=zoom(),dx=(sx-W/2)/z,dy=(sy-H/2)/z,ca=Math.cos(cam.a),sa=Math.sin(cam.a);
+ return {x:cam.x+dx*ca-dy*sa,y:cam.y+dx*sa+dy*ca};
+}
+function drawTerrain(){
+ x.fillStyle='#172018';x.fillRect(0,0,WORLD,WORLD);
+ // Enemy-held central objective.
+ x.save();x.translate(BASE_X,BASE_Y);
+ x.fillStyle='#332626';x.strokeStyle='#b85b5b';x.lineWidth=3;
+ x.beginPath();x.arc(0,0,BASE_R,0,Math.PI*2);x.fill();x.stroke();
+ x.fillStyle='#66534a';x.fillRect(-31,-24,62,48);
+ x.fillStyle='#241e1b';x.fillRect(-9,4,18,20);
+ x.strokeStyle='rgba(255,110,110,.55)';x.lineWidth=1;
+ x.beginPath();x.arc(0,0,BASE_R+12,0,Math.PI*2);x.stroke();
+ x.restore();
+ // roads
+ x.strokeStyle='#3a3a31';x.lineWidth=24;x.beginPath();x.moveTo(0,430);x.bezierCurveTo(500,520,1100,310,WORLD,620);x.stroke();
+ x.strokeStyle='#666052';x.lineWidth=2;x.setLineDash([12,18]);x.stroke();x.setLineDash([]);
+ // river
+ x.strokeStyle='#263e46';x.lineWidth=45;x.beginPath();x.moveTo(250,0);x.bezierCurveTo(150,550,650,1000,420,WORLD);x.stroke();
+ for(const t of terrain){
+  x.save();x.translate(t.x,t.y);x.rotate(t.a||0);
+  if(t.type==='field'){x.fillStyle='#252b1d';x.fillRect(-t.w/2,-t.h/2,t.w,t.h);x.strokeStyle='#3c432b';x.lineWidth=2;for(let q=-t.h/2+8;q<t.h/2;q+=10){x.beginPath();x.moveTo(-t.w/2,q);x.lineTo(t.w/2,q);x.stroke()}}
+  if(t.type==='tree'){x.fillStyle='#263824';x.beginPath();x.arc(0,0,t.r,0,Math.PI*2);x.fill();x.fillStyle='#151b14';x.fillRect(-2,-2,4,7)}
+  if(t.type==='house'){x.fillStyle='#555046';x.fillRect(-t.w/2,-t.h/2,t.w,t.h);x.strokeStyle='#807769';x.strokeRect(-t.w/2,-t.h/2,t.w,t.h)}
+  x.restore();
+ }
+}
+function drawUnit(u){if(u.dead||u.entered)return;x.save();x.translate(u.x,u.y);x.rotate(cam.a);if(u.team==='enemy'&&(u.alert||0)>0){x.save();x.globalAlpha=.35+.25*Math.sin(worldTime*18);x.fillStyle='#fff4a8';x.beginPath();x.arc(0,0,20,0,Math.PI*2);x.fill();x.restore();}
+x.fillStyle=u.team==='ally'?'#58aaff':'#ff5959';if(u.team==='ally'){x.fillRect(-7,-7,14,14);x.fillStyle='#b9dcff';x.fillRect(-2,-11,4,8)}else{x.beginPath();x.moveTo(0,-8);x.lineTo(8,7);x.lineTo(-8,7);x.closePath();x.fill()}x.restore()}
+function draw(){
+ x.clearRect(0,0,W,H);x.save();worldTransform();drawTerrain();
+ for(const u of allies)drawUnit(u);for(const u of enemies)drawUnit(u);
+ if(manpads){
+   x.save();x.translate(manpads.x,manpads.y);
+   x.globalAlpha=.55+.4*Math.sin(worldTime*12);
+   x.strokeStyle='#ffe36b';x.lineWidth=3/zoom();x.beginPath();x.arc(0,0,18,0,Math.PI*2);x.stroke();
+   x.fillStyle='#ffe36b';x.font=(14/zoom())+'px ui-monospace,monospace';x.textAlign='center';
+   x.fillText('SAM '+Math.max(0,manpads.t).toFixed(1),0,-25/zoom());
+   x.restore();
+ }
+ for(const m of marks){x.strokeStyle=`rgba(255,255,255,${1-m.t/.8})`;x.lineWidth=1;x.beginPath();x.arc(m.x,m.y,12+m.t*10,0,Math.PI*2);x.stroke();x.beginPath();x.moveTo(m.x-18,m.y);x.lineTo(m.x+18,m.y);x.moveTo(m.x,m.y-18);x.lineTo(m.x,m.y+18);x.stroke()}
+ for(const b of bombs){
+   // No blast effect before impact: only a small aiming marker and countdown.
+   x.save();x.translate(b.x,b.y);x.rotate(cam.a);x.scale(1/zoom(),1/zoom());
+   x.strokeStyle='rgba(255,255,255,.8)';x.lineWidth=1;
+   x.beginPath();x.moveTo(-7,0);x.lineTo(7,0);x.moveTo(0,-7);x.lineTo(0,7);x.stroke();
+   x.fillStyle='#fff';x.font='12px ui-monospace';x.textAlign='center';
+   x.fillText(Math.max(0,b.delay-b.t).toFixed(1),0,-12);x.restore();
+ }
+ for(const q of blasts){if(q.screen)continue;let p=q.t/.55,rr=q.small?12:(q.radius||blastRadius);x.fillStyle=`rgba(255,210,100,${1-p})`;x.beginPath();x.arc(q.x,q.y,rr*(.5+p*.8),0,Math.PI*2);x.fill();x.strokeStyle=`rgba(255,255,255,${1-p})`;x.beginPath();x.arc(q.x,q.y,rr*(.2+p),0,Math.PI*2);x.stroke()}
+ x.restore();
+ for(const q of blasts)if(q.screen){x.fillStyle=q.color;x.fillRect(0,0,W,H)}
+ // Fixed aircraft HUD reticle emphasizes that the ground moves beneath the player.
+ x.strokeStyle='rgba(220,235,225,.28)';x.lineWidth=1;x.beginPath();x.arc(W/2,H/2,30,0,Math.PI*2);x.stroke();
+ x.beginPath();x.moveTo(W/2-42,H/2);x.lineTo(W/2-20,H/2);x.moveTo(W/2+20,H/2);x.lineTo(W/2+42,H/2);x.stroke();
+ // Faint score and bonus countdown in the center.
+ const liveSurvivors=allies.filter(a=>!a.dead).length;
+ const liveScore=kills*liveSurvivors;
+ x.save();x.textAlign='center';x.textBaseline='middle';
+ x.font='700 18px ui-monospace,monospace';x.fillStyle='rgba(235,240,240,.20)';
+ x.fillText('SCORE '+liveScore,W/2,H/2+78);
+ if(bonusStage){
+   x.font='800 16px ui-monospace,monospace';x.fillStyle='rgba(235,240,240,.32)';
+   x.fillText(beamSweep?'ANNIHILATION LASER SWEEP':('ANNIHILATION LASER '+Math.ceil(bonusTime)),W/2,H/2+104);
+ }
+ x.restore();
+ // Bombs currently in flight / simultaneous limit.
+ const activeBombs=bombs.filter(b=>!b.done).length;
+ x.save();x.textAlign='center';x.textBaseline='middle';
+ x.font='700 13px ui-monospace,monospace';
+ x.fillStyle=activeBombs>=5?'rgba(255,190,190,.48)':'rgba(235,240,240,.20)';
+ x.fillText('BOMBS '+activeBombs+'/5',W/2,H/2+52);
+ x.restore();
+
+ // Objective annihilation laser: one slow 500-radius sweeping beam.
+ if(beamSweep){
+   x.save();worldTransform();
+   const bx=BASE_X+Math.cos(beamAngle)*500,by=BASE_Y+Math.sin(beamAngle)*500;
+   x.globalAlpha=.28;x.strokeStyle='rgba(180,225,255,.95)';x.lineWidth=24/zoom();
+   x.beginPath();x.moveTo(BASE_X,BASE_Y);x.lineTo(bx,by);x.stroke();
+   x.globalAlpha=.88;x.strokeStyle='rgba(220,245,255,.98)';x.lineWidth=8/zoom();
+   x.beginPath();x.moveTo(BASE_X,BASE_Y);x.lineTo(bx,by);x.stroke();
+   x.globalAlpha=1;x.strokeStyle='rgba(255,255,255,1)';x.lineWidth=2/zoom();
+   x.beginPath();x.moveTo(BASE_X,BASE_Y);x.lineTo(bx,by);x.stroke();
+   x.fillStyle='rgba(255,255,255,.95)';x.beginPath();x.arc(bx,by,9/zoom(),0,Math.PI*2);x.fill();
+   x.restore();
+ }
+ if(manpads&&running){
+   x.save();x.textAlign='center';x.textBaseline='middle';
+   x.font='700 18px ui-monospace,monospace';
+   x.fillStyle=(Math.floor(worldTime*5)%2)?'#ffef76':'#ff6b6b';
+   x.fillText('MISSILE LAUNCH IN '+Math.max(0,manpads.t).toFixed(1)+'s',W/2,112);
+   x.restore();
+ }
+ if(radioT>0){
+   x.save();x.textAlign='center';x.textBaseline='middle';
+   x.font='700 15px ui-monospace,monospace';
+   x.fillStyle='rgba(220,240,255,.88)';
+   x.fillText(radioText,W/2,82);x.restore();
+ }
+
+
+
+}
+function loop(t){let dt=Math.min(.033,(t-last)/1000||0);last=t;update(dt);draw();requestAnimationFrame(loop)}
+function tap(e){const r=c.getBoundingClientRect(),p=e.touches?e.touches[0]:e,sx=p.clientX-r.left,sy=p.clientY-r.top;if(!started){start();return}if(!running)return;if(bombs.filter(b=>!b.done).length>=5)return;let w=screenToWorld(sx,sy);const bt=bombTypes[selectedBomb];
+ bombs.push({x:w.x,y:w.y,t:0,done:false,delay:2.0*(altitude/5000),radius:bt.radius,bombType:selectedBomb});
+ marks.push({x:w.x,y:w.y,t:0});updateHUD()}
+function flightHUD(){
+ const a=Math.round(altitude/10)*10;
+ altVal.textContent = Math.abs(targetAltitude-altitude)>5 ? a+'→'+targetAltitude+'m' : a+'m';
+ spdVal.textContent='SPD '+airspeed+'km/h';
+}
+altDown.onclick=()=>{targetAltitude=Math.max(ALT_MIN,targetAltitude-ALT_STEP);flightHUD()};
+altUp.onclick=()=>{targetAltitude=Math.min(ALT_MAX,targetAltitude+ALT_STEP);flightHUD()};
+function bombHUD(){
+ bombVal.textContent=bombTypes[selectedBomb].name;
+ for(const [el,key] of [[bombSmall,'small'],[bombMed,'medium'],[bombLarge,'large']]){
+   el.style.opacity=selectedBomb===key?'1':'.45';
+   el.style.borderWidth=selectedBomb===key?'2px':'1px';
+ }
+}
+function chooseMode(mode){
+ selectedMode=mode;
+ selectedBomb=mode==='easy'?'large':(mode==='hard'||mode==='extreme')?'small':'medium';
+ modeSelect.style.display='none';
+ bombHUD();reset();
+}
+document.querySelectorAll('.modeBtn').forEach(btn=>btn.onclick=()=>chooseMode(btn.dataset.mode));
+c.addEventListener('pointerdown',tap);
+restart.onclick=()=>{
+ running=false;started=false;selectedMode=null;
+ modeSelect.style.display='flex';
+};
+flightHUD();bombHUD();
+msg.style.display='none';
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

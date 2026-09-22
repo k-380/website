@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>アハトアハト射手 — 対空射撃試作</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;background:#101010;color:#eee;font-family:system-ui,-apple-system,sans-serif}
+.wrap{max-width:1000px;margin:auto;padding:8px}
+.sky{position:relative;height:680px;max-height:78vw;min-height:500px;overflow:hidden;border:1px solid #555;border-radius:12px;background:linear-gradient(#080b10,#15171a);touch-action:manipulation}
+.ground{position:absolute;left:0;right:0;bottom:0;height:28px;background:#292929;border-top:1px solid #555}
+.gun{position:absolute;left:50%;bottom:23px;width:6px;height:54px;background:#bbb;transform-origin:50% 100%;border-radius:3px;z-index:5}
+.mount{position:absolute;left:calc(50% - 14px);bottom:17px;width:28px;height:15px;background:#888;border-radius:5px 5px 2px 2px;z-index:6}
+.shell{position:absolute;width:6px;height:6px;border-radius:50%;background:#fff;z-index:8}
+.trail{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
+.trail polyline{fill:none;stroke:#bbb;stroke-width:1.4;stroke-linecap:round;stroke-linejoin:round;opacity:.62}
+.burst{position:absolute;width:10px;height:10px;border:2px solid #fff;border-radius:50%;transform:translate(-50%,-50%);animation:burst .7s ease-out forwards;z-index:9}
+@keyframes burst{from{width:10px;height:10px;opacity:1}to{width:76px;height:76px;opacity:0}}
+.plane{position:absolute;width:52px;height:24px;z-index:7;pointer-events:none}
+.plane svg{display:block;width:52px;height:24px;overflow:visible}
+.plane path,.plane line,.plane polyline{fill:none;stroke:#aaa;stroke-width:1.3;vector-effect:non-scaling-stroke}
+.friendly svg path,.friendly svg line,.friendly svg polyline{stroke:#eee}
+.friendly-tag{position:absolute;left:10px;top:-14px;font-size:9px;color:#eee;white-space:nowrap}
+.hud{position:absolute;left:12px;top:10px;z-index:12;font:13px/1.6 monospace;color:#ddd;pointer-events:none;text-shadow:0 1px 2px #000}
+.overlay{position:absolute;inset:0;z-index:20;pointer-events:none}
+.ctrl{position:absolute;pointer-events:auto;border:1px solid rgba(255,255,255,.42);background:rgba(25,25,25,.42);color:#fff;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);font-weight:700;user-select:none;-webkit-user-select:none;touch-action:none}
+.ctrl:active{background:rgba(255,255,255,.24)}
+.angle-down{left:14px;bottom:18px;width:74px;height:74px;border-radius:50%;font-size:30px}
+.angle-up{left:98px;bottom:18px;width:74px;height:74px;border-radius:50%;font-size:30px}
+.fire{right:16px;bottom:18px;width:94px;height:94px;border-radius:50%;font-size:18px}
+.fire:disabled{opacity:.4}
+.angle-read{position:absolute;left:18px;bottom:101px;color:#eee;font:16px monospace;text-shadow:0 1px 3px #000}
+.fuse-panel{width:100%;padding:12px 4px 4px}
+.fuse-panel .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;font:13px monospace;color:#ddd}
+.fuse-panel input{display:block;width:100%;height:34px;margin:0;accent-color:#ddd}
+.reload{position:absolute;right:17px;bottom:108px;width:122px;font:10px monospace;color:#ddd;text-shadow:0 1px 3px #000}
+.reload-label{display:flex;justify-content:space-between;margin-bottom:5px}
+.reload-slots{display:flex;flex-direction:column;gap:4px}
+.reload-slot{display:grid;grid-template-columns:14px 1fr 31px;align-items:center;gap:4px}
+.reload-track{height:7px;border:1px solid rgba(255,255,255,.55);background:rgba(0,0,0,.45);overflow:hidden}
+.reload-fill{height:100%;width:100%;background:#ddd}
+.reload-time{text-align:right}
+.status{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:22;font:13px monospace;color:#ddd;text-shadow:0 1px 3px #000;white-space:nowrap}
+.radio{position:absolute;left:50%;top:42px;transform:translateX(-50%);z-index:23;padding:7px 12px;border:1px solid rgba(255,255,255,.35);background:rgba(10,10,10,.55);font:12px monospace;color:#eee;letter-spacing:.04em;white-space:nowrap;opacity:0;transition:opacity .15s;pointer-events:none}
+.radio.show{opacity:1}
+.discipline-warning{position:absolute;left:50%;top:68px;transform:translateX(-50%);z-index:24;display:none;padding:6px 10px;border:1px solid rgba(255,255,255,.42);background:rgba(20,20,20,.62);font:700 12px monospace;color:#eee;white-space:nowrap;pointer-events:none}.discipline-warning.show{display:block}
+.gameover{position:absolute;inset:0;z-index:40;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.72);text-align:center}
+.gameover.show{display:flex}.gameover-box{padding:22px 28px;border:1px solid rgba(255,255,255,.45);background:rgba(20,20,20,.86);border-radius:10px}
+.gameover-title{font:700 28px monospace;letter-spacing:.08em}.gameover-sub{margin-top:10px;font:13px monospace;color:#ccc}
+.restart{margin-top:18px;min-width:130px;min-height:46px;border:1px solid #777;border-radius:8px;background:#ddd;color:#111;font-weight:700}
+.mode-panel{display:flex;gap:8px;align-items:center;padding:8px 4px 0;font:12px monospace;color:#ccc}
+.mode-btn{padding:7px 12px;border:1px solid #666;border-radius:6px;background:#171717;color:#bbb}
+.mode-btn.active{background:#ddd;color:#111;border-color:#ddd}
+.predicted-burst{position:absolute;width:34px;height:34px;border:1px dashed rgba(255,255,255,.8);border-radius:50%;transform:translate(-50%,-50%);z-index:8;pointer-events:none;display:none}
+.predicted-burst.show{display:block}
+.predicted-burst:before,.predicted-burst:after{content:"";position:absolute;background:rgba(255,255,255,.7)}
+.predicted-burst:before{width:10px;height:1px;left:11px;top:16px}.predicted-burst:after{width:1px;height:10px;left:16px;top:11px}
+.note{font-size:12px;color:#aaa;margin:8px 2px}
+@media(max-width:600px){
+ .wrap{padding:0}.sky{height:650px;max-height:none;min-height:0;border-radius:0}
+ .ctrl.angle-down,.ctrl.angle-up{width:66px;height:66px}
+ .angle-up{left:88px}.fire{width:86px;height:86px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="sky" id="sky">
+ <div class="hud">撃墜 <span id="kills">0</span><br>突破 <span id="escaped">0</span> / 10<br>誤射 <span id="friendlyHits">0</span></div>
+ <div class="status" id="status">装填完了</div>
+ <div class="radio" id="radio" aria-live="polite"></div>
+ <div class="discipline-warning" id="disciplineWarning">警告：2度目はないぞ？</div>
+ <div class="predicted-burst" id="predictedBurst" aria-hidden="true"></div>
+ <svg class="trail" id="trail" preserveAspectRatio="none"><polyline id="trailLine"/></svg>
+ <div class="aimline" id="aimline"></div><div class="gun" id="barrel"></div><div class="mount"></div><div class="ground"></div>
+ <div class="gameover" id="gameover"><div class="gameover-box"><div class="gameover-title">GAME OVER</div><div class="gameover-sub" id="gameoverReason">敵機10機が防空圏を突破</div><button type="button" class="restart" id="restart">再出撃</button></div></div>
+ <div class="overlay">
+   <div class="angle-read">射角 <span id="angleOut">55</span>°</div>
+   <button id="angleUp" class="ctrl angle-down" aria-label="射角を上げる">＋</button>
+   <button id="angleDown" class="ctrl angle-up" aria-label="射角を下げる">−</button>
+   <button id="fire" class="ctrl fire">発射</button>
+   <div class="reload">
+     <div class="reload-label"><span>装填 <span id="ammo">3</span>/3</span><span id="reload">READY</span></div>
+     <div class="reload-slots">
+       <div class="reload-slot"><span>1</span><div class="reload-track"><div class="reload-fill" id="reloadFill0"></div></div><span class="reload-time" id="reloadTime0">●</span></div>
+       <div class="reload-slot"><span>2</span><div class="reload-track"><div class="reload-fill" id="reloadFill1"></div></div><span class="reload-time" id="reloadTime1">●</span></div>
+       <div class="reload-slot"><span>3</span><div class="reload-track"><div class="reload-fill" id="reloadFill2"></div></div><span class="reload-time" id="reloadTime2">●</span></div>
+     </div>
+   </div>
+ </div>
+</div>
+<div class="mode-panel"><span>MODE</span><button type="button" class="mode-btn active" id="trainingMode">訓練</button><button type="button" class="mode-btn" id="combatMode">実戦</button></div>
+<div class="fuse-panel">
+ <div class="row"><span>時限信管</span><span><span id="fuseOut">2.5</span> 秒</span></div>
+ <input id="fuse" type="range" min=".8" max="5" value="2.5" step=".1" aria-label="時限信管">
+</div>
+<div class="note">訓練モードでは現在の射角・信管設定による炸裂予定地点を照準印で事前表示。実戦モードでは表示しません。−／＋は長押し対応。点線は現在の射角。敵機10機突破でゲームオーバー。友軍誤射は1回目で常時警告、2回目で即ゲームオーバー。砲弾は最大3発まで装填でき、各弾の装填状態を個別ゲージで表示します。1発の再装填には3秒かかります。</div>
+</div>
+<script>
+const sky=document.querySelector('#sky'),barrel=document.querySelector('#barrel'),aimline=document.querySelector('#aimline'),angleOut=document.querySelector('#angleOut'),
+down=document.querySelector('#angleDown'),up=document.querySelector('#angleUp'),fuse=document.querySelector('#fuse'),
+fuseOut=document.querySelector('#fuseOut'),fire=document.querySelector('#fire'),status=document.querySelector('#status'),
+trail=document.querySelector('#trail'),trailLine=document.querySelector('#trailLine'),killsOut=document.querySelector('#kills'),
+friendlyHitsOut=document.querySelector('#friendlyHits'),reloadOut=document.querySelector('#reload'),radio=document.querySelector('#radio'),escapedOut=document.querySelector('#escaped'),gameoverEl=document.querySelector('#gameover'),restart=document.querySelector('#restart'),disciplineWarning=document.querySelector('#disciplineWarning'),gameoverReason=document.querySelector('#gameoverReason'),ammoOut=document.querySelector('#ammo'),reloadFills=[0,1,2].map(i=>document.querySelector('#reloadFill'+i)),reloadTimes=[0,1,2].map(i=>document.querySelector('#reloadTime'+i)),predictedBurst=document.querySelector('#predictedBurst'),trainingModeBtn=document.querySelector('#trainingMode'),combatModeBtn=document.querySelector('#combatMode');
+
+let angle=55,mode='training',ammo=3,slots=[1,1,1],reloadQueue=[],reloadActive=false,holdTimer=null,repeatTimer=null,kills=0,friendlyHits=0,escaped=0,gameOver=false,planes=[],
+lastFrame=performance.now(),nextEnemy=0,nextFriendly=performance.now()+5000,friendlyWarned=false,radioTimer=null;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function updatePredictedBurst(){
+ if(mode!=='training'){predictedBurst.classList.remove('show');return}
+ const rect=sky.getBoundingClientRect(),rad=angle*Math.PI/180,pivotX=rect.width/2,pivotY=rect.height-25,L=22;
+ const sx=pivotX+Math.cos(rad)*L,sy=pivotY-Math.sin(rad)*L,speed=Math.min(rect.width,rect.height)*.30;
+ const t=Number(fuse.value),x=sx+Math.cos(rad)*speed*t,y=sy-Math.sin(rad)*speed*t+.5*7.5*t*t;
+ predictedBurst.style.left=x+'px';predictedBurst.style.top=y+'px';
+ predictedBurst.classList.toggle('show',x>=0&&x<=rect.width&&y>=0&&y<=rect.height);
+}
+function renderAngle(){angle=clamp(angle,15,85);angleOut.textContent=angle;barrel.style.transform=`translateX(-50%) rotate(${90-angle}deg)`;aimline.style.transform=`translateX(-50%) rotate(${90-angle}deg)`;updatePredictedBurst()}
+function changeAngle(d){angle=clamp(angle+d,15,85);renderAngle()}
+function stopHold(){clearTimeout(holdTimer);clearInterval(repeatTimer);holdTimer=repeatTimer=null}
+function bindHold(btn,d){
+ btn.addEventListener('pointerdown',e=>{e.preventDefault();stopHold();changeAngle(d);btn.setPointerCapture(e.pointerId);
+ holdTimer=setTimeout(()=>repeatTimer=setInterval(()=>changeAngle(d),35),220)});
+ btn.addEventListener('pointerup',stopHold);btn.addEventListener('pointercancel',stopHold);btn.addEventListener('lostpointercapture',stopHold)
+}
+bindHold(down,-1);bindHold(up,1);
+fuse.addEventListener('input',()=>{fuseOut.textContent=Number(fuse.value).toFixed(1);updatePredictedBurst()});
+function setMode(next){
+ mode=next;
+ trainingModeBtn.classList.toggle('active',mode==='training');
+ combatModeBtn.classList.toggle('active',mode==='combat');
+ updatePredictedBurst();
+ status.textContent=mode==='training'?'訓練モード':'実戦モード';
+}
+trainingModeBtn.addEventListener('click',()=>setMode('training'));
+combatModeBtn.addEventListener('click',()=>setMode('combat'));
+window.addEventListener('resize',updatePredictedBurst);
+
+function radioMessage(text){
+ radio.textContent='無線：'+text;
+ radio.classList.add('show');
+ clearTimeout(radioTimer);
+ radioTimer=setTimeout(()=>radio.classList.remove('show'),1800);
+}
+function makePlane(type){
+ const el=document.createElement('div');el.className='plane '+type;
+ el.innerHTML=(type==='friendly'?'<span class="friendly-tag">友軍</span>':'')+`<svg viewBox="0 0 52 24" aria-hidden="true"><path d="M1 12 L13 10 L21 3 L25 3 L23 10 L42 10 L49 12 L42 14 L23 14 L25 21 L21 21 L13 14 Z"/><line x1="7" y1="12" x2="46" y2="12"/><polyline points="8,10 5,5 8,5 14,10"/></svg>`;
+ sky.appendChild(el);
+ const h=sky.clientHeight;
+ const y=type==='friendly'?(60+Math.random()*Math.max(80,h*.35)):(45+Math.random()*Math.max(100,h-210));
+ planes.push({el,type,x:-70,y,baseSpeed:type==='friendly'?105:20+Math.random()*6,alive:true})
+}
+function removePlane(p){p.alive=false;p.el.remove()}
+
+function endGame(reason='敵機10機が防空圏を突破'){
+ if(gameOver)return;
+ gameOver=true;
+ gameoverReason.textContent=reason;
+ status.textContent='GAME OVER';
+ fire.disabled=true;
+ stopHold();
+ gameoverEl.classList.add('show');
+}
+function resetGame(){
+ for(const p of planes){if(p.el)p.el.remove()}
+ planes=[];kills=0;friendlyHits=0;escaped=0;gameOver=false;ammo=3;slots=[1,1,1];reloadQueue=[];reloadActive=false;
+ killsOut.textContent='0';friendlyHitsOut.textContent='0';escapedOut.textContent='0';ammoOut.textContent='3';
+ gameoverEl.classList.remove('show');disciplineWarning.classList.remove('show');gameoverReason.textContent='敵機10機が防空圏を突破';status.textContent='装填完了';
+ nextEnemy=performance.now()+800;nextFriendly=performance.now()+5000;friendlyWarned=false;
+ fire.disabled=false;reloadOut.textContent='READY';
+ reloadFills.forEach(f=>f.style.width='100%');reloadTimes.forEach(t=>t.textContent='●')
+ makePlane('enemy');
+}
+restart.addEventListener('click',resetGame);
+
+function worldLoop(now){
+ const dt=Math.min((now-lastFrame)/1000,.05);lastFrame=now;
+ if(!gameOver && now>=nextEnemy){makePlane('enemy');nextEnemy=now+2600+Math.random()*2800}
+ if(!gameOver && !friendlyWarned && now>=nextFriendly-2000 && now<nextFriendly){
+  friendlyWarned=true;
+  radioMessage('友軍機接近。射撃注意！');
+ }
+ if(!gameOver && now>=nextFriendly){
+  makePlane('friendly');
+  nextFriendly=now+8000+Math.random()*7000;
+  friendlyWarned=false;
+ }
+ const w=sky.clientWidth;
+ for(const p of planes){
+  if(!p.alive)continue;
+  const h=Math.max(1,sky.clientHeight);
+  const depth=clamp(p.y/(h-30),0,1);
+  const scale=.62+depth*.95;
+  const speedFactor=.58+depth*1.55;
+  p.x+=p.baseSpeed*speedFactor*dt;
+  p.el.style.transform=`translate(${p.x}px,${p.y}px) scale(${scale.toFixed(3)})`;
+  p.el.style.transformOrigin='center center';
+  if(p.x>w+90){
+   if(p.type==='enemy' && !gameOver){
+    escaped++;escapedOut.textContent=escaped;
+    if(escaped>=10)endGame('敵機10機が防空圏を突破');
+   }
+   removePlane(p)
+  }
+ }
+ planes=planes.filter(p=>p.alive);requestAnimationFrame(worldLoop)
+}
+
+function burstHit(x,y){
+ const radius=43;let eh=false,fh=false;
+ for(const p of [...planes]){
+  if(!p.alive)continue;
+  const h=Math.max(1,sky.clientHeight),depth=clamp(p.y/(h-30),0,1),scale=.62+depth*.95;
+  const cx=p.x+26*scale,cy=p.y+12*scale;
+  if(Math.hypot(cx-x,cy-y)<=radius+10*scale){
+   removePlane(p);
+   if(p.type==='enemy'){kills++;killsOut.textContent=kills;eh=true}
+   else{
+    friendlyHits++;friendlyHitsOut.textContent=friendlyHits;fh=true;
+    if(friendlyHits===1){
+      disciplineWarning.classList.add('show');
+    }else if(friendlyHits>=2){
+      endGame('友軍機を2回誤射 — 射撃任務から解任');
+    }
+   }
+  }
+ }
+ if(!gameOver)status.textContent=fh?(friendlyHits===1?'誤射！ 2度目はないぞ？':'誤射！'):eh?'命中 — 敵機撃墜':'炸裂 — 命中なし'
+}
+
+function updateAmmoUI(){
+ ammo=slots.reduce((n,v)=>n+(v===1?1:0),0);
+ ammoOut.textContent=ammo;
+ reloadOut.textContent=ammo===3?'READY':reloadActive?'LOADING':'WAIT';
+ if(!gameOver)fire.disabled=ammo<=0;
+}
+function queueReload(slot){
+ if(!reloadQueue.includes(slot) && slots[slot]===0)reloadQueue.push(slot);
+ if(!reloadActive)runReloadQueue();
+}
+function runReloadQueue(){
+ if(gameOver || reloadQueue.length===0){reloadActive=false;updateAmmoUI();return}
+ reloadActive=true;
+ const slot=reloadQueue.shift(),start=performance.now(),duration=3000;
+ slots[slot]=-1;
+ reloadFills[slot].style.width='0%';
+ function tick(now){
+  if(gameOver){reloadActive=false;return}
+  const elapsed=Math.min(duration,now-start),left=Math.max(0,(duration-elapsed)/1000);
+  reloadFills[slot].style.width=`${(elapsed/duration*100).toFixed(1)}%`;
+  reloadTimes[slot].textContent=left>0?left.toFixed(1):'●';
+  if(left>0){requestAnimationFrame(tick);return}
+  slots[slot]=1;reloadFills[slot].style.width='100%';reloadTimes[slot].textContent='●';
+  reloadActive=false;updateAmmoUI();
+  runReloadQueue();
+ }
+ requestAnimationFrame(tick)
+}
+
+function fireShot(){
+ if(ammo<=0||gameOver)return;
+ const slot=slots.findIndex(v=>v===1);
+ if(slot<0)return;
+ slots[slot]=0;
+ reloadFills[slot].style.width='0%';reloadTimes[slot].textContent='3.0';
+ updateAmmoUI();
+ queueReload(slot);
+ const shotAngle=angle,shotFuse=Number(fuse.value),rad=shotAngle*Math.PI/180,rect=sky.getBoundingClientRect();
+ trail.setAttribute('viewBox',`0 0 ${rect.width} ${rect.height}`);
+ const pivotX=rect.width/2,pivotY=rect.height-25,L=22,sx=pivotX+Math.cos(rad)*L,sy=pivotY-Math.sin(rad)*L;
+ const shell=document.createElement('div');shell.className='shell';sky.appendChild(shell);
+ const path=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+ path.setAttribute('fill','none');path.setAttribute('stroke','#bbb');path.setAttribute('stroke-width','1.4');path.setAttribute('opacity','.62');
+ trail.appendChild(path);
+ const speed=Math.min(rect.width,rect.height)*.30,vx=Math.cos(rad)*speed,vy=-Math.sin(rad)*speed,g=7.5,
+ duration=shotFuse*1000,start=performance.now(),points=[];let lastTrail=0;
+ status.textContent='発射';
+ function shotFrame(now){
+  const t=(now-start)/1000,x=sx+vx*t,y=sy+vy*t+.5*g*t*t;
+  shell.style.left=(x-3)+'px';shell.style.top=(y-3)+'px';
+  if(now-lastTrail>35){points.push(`${x.toFixed(1)},${y.toFixed(1)}`);path.setAttribute('points',points.join(' '));lastTrail=now}
+  if(now-start>=duration){
+   shell.remove();const burst=document.createElement('div');burst.className='burst';burst.style.left=x+'px';burst.style.top=y+'px';sky.appendChild(burst);
+   burstHit(x,y);setTimeout(()=>{burst.remove();path.remove()},1300);return
+  }
+  requestAnimationFrame(shotFrame)
+ }
+ requestAnimationFrame(shotFrame)
+}
+fire.addEventListener('click',fireShot);
+renderAngle();makePlane('enemy');requestAnimationFrame(worldLoop);
+</script>
+</body>
+</html>

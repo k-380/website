@@ -9,7 +9,7 @@
 <header><h1>Micro Futures AI Lab</h1><p>日経225マイクロ先物｜AI提案プロンプト生成・注文解析・リスク可視化</p></header>
 <div class="wrap"><div class="grid">
 <section class="card third"><h2>① 調査対象</h2><div id="checks" class="checks"></div><div class="buttons"><button class="secondary" onclick="setChecks(true)">全選択</button><button class="secondary" onclick="setChecks(false)">全解除</button></div></section>
-<section class="card third"><h2>② 発注条件</h2><div class="fields"><div><label>調査期間（日）</label><input id="days" type="number" value="7" min="1"></div><div><label>基準価格 S（円）</label><input id="spot" type="number" value="67000" step="5"></div><div><label>買い本数</label><input id="buyN" type="number" value="5" min="1"></div><div><label>売り本数</label><input id="sellN" type="number" value="5" min="1"></div><div><label>1注文の枚数</label><input id="qty" type="number" value="1" min="1"></div><div><label>日経VI（%）</label><input id="vi" type="number" value="24.23" step="0.01"></div><div><label>期限までの時間</label><input id="hours" type="number" value="15" step="0.5"></div><div><label>AI名</label><input id="aiName" value="AI"></div></div></section>
+<section class="card third"><h2>② 発注条件</h2><div class="fields"><div><label>調査期間（日）</label><input id="days" type="number" value="7" min="1"></div><div><label>基準価格 S（円）</label><input id="spot" type="number" value="67000" step="5"></div><div><label>買い本数</label><input id="buyN" type="number" value="5" min="1"></div><div><label>売り本数</label><input id="sellN" type="number" value="5" min="1"></div><div><label>1注文の枚数</label><input id="qty" type="number" value="1" min="1"></div><div><label>日経VI（%）</label><input id="vi" type="number" value="24.23" step="0.01"></div><div><label>ナイト終了までの時間</label><input id="hours" type="number" value="13" step="0.5"></div><div><label>AI名</label><input id="aiName" value="AI"></div></div></section>
 <section class="card third"><h2>③ 価格モデル</h2><div class="fields"><div><label>年間取引日数</label><input id="daysYear" type="number" value="252"></div><div><label>1日の対象時間（時間）</label><input id="dayHours" type="number" value="24"></div></div><p class="note">約定確率は、日経VIを年率ボラとみなし、ドリフト0のブラウン運動による「期限までの初回到達確率」の簡易近似です。実際のギャップ、ボラ・スマイル、トレンド、板、指値優先順位等は反映しません。</p></section>
 <section class="card half"><h2>④ AI用プロンプト</h2><textarea id="prompt"></textarea><div class="buttons"><button onclick="makePrompt()">プロンプト生成</button><button class="secondary" onclick="copyText('prompt')">コピー</button></div></section>
 <section class="card half"><h2>⑤ AI回答を貼り付け</h2><textarea id="answer" placeholder="AIの回答全文を貼り付けてください。ORDER_DATA ブロックを自動抽出します。"></textarea><div class="buttons"><button onclick="parseAnswer()">回答を解析</button><button class="secondary" onclick="loadSample()">サンプル読込</button><button class="danger" onclick="clearAll()">保存データ削除</button></div><div id="msg" class="note"></div></section>
@@ -27,7 +27,66 @@ const $=id=>document.getElementById(id); const yen=n=>'¥'+Math.round(n).toLocal
 function init(){ $('checks').innerHTML=symbols.map((s,i)=>`<label class="check"><input type="checkbox" value="${s}" ${i<10?'checked':''}>${s}</label>`).join(''); load(); makePrompt(); }
 function setChecks(v){document.querySelectorAll('#checks input').forEach(x=>x.checked=v);makePrompt();save()}
 function selected(){return [...document.querySelectorAll('#checks input:checked')].map(x=>x.value)}
-function makePrompt(){let sy=selected(); let txt=`日経225マイクロ先物について、次回の昼休みに発注し、当日ナイトセッション終了まで有効なIFD-OCO指値注文案を作成してください。\n\nWeb上の最新情報を必ず検索し、過去${$('days').value}日について次の市場を調査してください：\n${sy.map(x=>'・'+x).join('\n')}\n\n現在値、期間始値・高値・安値・騰落率、各日の高安値幅、日中/夜間、直近24〜48時間の急変、ボラティリティ、重要イベント、市場間の整合性を分析してください。取得できない値は推測せず「取得できない」としてください。\n\n日経225先物、VIX、日経平均VIを重視し、昼休みからナイト終了までの想定値幅を推定してください。基準価格をSとし、買いIFD-OCOを${$('buyN').value}本、売りIFD-OCOを${$('sellN').value}本提案してください。通常変動・大きめ変動・オーバーシュートを混在させ、各注文の新規指値、利確、損切を示してください。複数同時約定時の集中リスクも評価してください。\n\n重要：回答末尾に、説明文とは別に必ず次の機械可読形式を付けてください。数値は円です。数値の桁区切りカンマは絶対に入れないでください（例：-1200、+1250）。各項目の区切りとしてのみカンマを使用してください。新規はSからの差、TP/SLは約定価格からの差です。BUYの新規は負、SELLの新規は正。BUYのTPは正・SLは負、SELLのTPは負・SLは正にしてください。\nORDER_DATA\nBUY,-200,+250,-300\n...\nSELL,+250,-250,+300\n...\nEND_ORDER_DATA\n\nさらに可能なら NIKKEI_VI,数値 の1行も回答に含めてください。`; $('prompt').value=txt;save();}
+function makePrompt(){let sy=selected(); let txt=`日経225マイクロ先物について、次回ナイトセッション開始前に予約発注するIFD-OCO指値注文案を作成してください。
+
+【取引ルール】
+・取引対象：日経225マイクロ先物
+・SBI証券のHYPER先物を利用する想定です。
+・ナイトセッション開始前に予約発注します。
+・新規注文の有効期間は、そのナイトセッション限りとします。
+・未約定の新規注文はナイトセッション終了で失効させます。
+・約定後、OCOの利確または損切に到達した場合はそこで決済します。
+・ナイトセッション終了まで利確・損切のどちらにも到達せず残った建玉は、ナイトセッション終了時の引成で全て決済します。
+・翌営業日の日中セッションへ建玉を持ち越しません。
+・したがって各注文の最終的な決済は「TP到達」「SL到達」「ナイト引け決済」のいずれかです。
+
+Web上の最新情報を必ず検索し、過去${$('days').value}日について次の市場を調査してください：
+${sy.map(x=>'・'+x).join('\n')}
+
+各市場について、取得可能な範囲で現在値、期間始値・高値・安値・騰落率、各日の高安値幅、日中とナイトの値動き、直近24〜48時間の急変、ボラティリティの変化、重要イベントを調査してください。取得できない値は推測せず「取得できない」としてください。
+
+特に、日経225先物自身のナイトセッションの実現値幅、VIX、日経平均VI、NASDAQ100先物、SOX指数、USD/JPYを重視してください。米国市場と重なる時間帯の値動きも考慮し、次回ナイトセッション開始から終了までの想定値幅を推定してください。
+
+市場間の方向が一致しているか、不一致があるかも分析してください。単純な週間騰落率だけではなく、直近の価格変化とボラティリティを重視してください。
+
+【注文作成】
+ナイト開始前の基準価格を S とします。
+買いIFD-OCOを${$('buyN').value}本、売りIFD-OCOを${$('sellN').value}本提案してください。
+通常変動を狙う注文、大きめの変動を待つ注文、オーバーシュートを待ち伏せする注文を混在させてください。
+
+各注文について、
+・新規指値
+・利確価格
+・損切価格
+・その新規指値までナイトセッション中に到達する可能性
+・注文の狙い
+を示してください。
+
+複数注文が同時に約定する場合の集中リスクも評価してください。特に、一方向へ急変した際に同方向の注文が連続約定するリスクを考慮してください。
+
+ナイト終了時には残存建玉を引成決済するため、TPまたはSLまで到達しなくても損益が確定することを考慮してください。引成価格は事前には分からないため、引成による最終損益を確定値として推測しないでください。
+
+【機械可読出力】
+回答末尾に、説明文とは別に必ず次の形式を付けてください。
+数値の単位は円です。
+金額の桁区切りカンマは絶対に入れないでください。例：-1200、+1250。
+カンマは項目を区切るためだけに使用してください。
+新規値はSからの差、TP/SLは約定価格からの差です。
+BUYの新規は負、SELLの新規は正。
+BUYのTPは正、SLは負。
+SELLのTPは負、SLは正。
+
+ORDER_DATA
+BUY,-200,+250,-300
+...
+SELL,+250,-250,+300
+...
+END_ORDER_DATA
+
+さらに、取得できた場合は
+NIKKEI_VI,24.23
+の形式で日経平均VIも出力してください。
+日経平均VIが取得できなければ、この行は出力しないでください。`; $('prompt').value=txt;save();}
 function norm(s){return Number(String(s).replace(/[＋+]/g,'').replace(/−/g,'-').replace(/,/g,''))}
 function parseAnswer(){let t=$('answer').value; let m=t.match(/ORDER_DATA([\s\S]*?)END_ORDER_DATA/i); if(!m){$('msg').innerHTML='<span class="error">ORDER_DATA ブロックが見つかりません。AIに機械可読形式で再出力させるか、サンプル形式に合わせてください。</span>';return} let arr=[]; m[1].trim().split(/\n/).forEach(line=>{let p=line.trim().split(/\s*,\s*/);if(p.length>=4&&/^(BUY|SELL)$/i.test(p[0])) arr.push({side:p[0].toUpperCase(),entry:norm(p[1]),tp:norm(p[2]),sl:norm(p[3])})}); let vm=t.match(/NIKKEI_VI\s*,\s*([\d.]+)/i); if(vm)$('vi').value=vm[1]; if(!arr.length){$('msg').innerHTML='<span class="error">注文行を読み取れませんでした。</span>';return} localStorage.setItem('orders',JSON.stringify(arr)); $('msg').innerHTML=`<span class="success">${arr.length}本の注文を読み取りました。</span>`; render(arr);save();}
 function erf(x){let s=x<0?-1:1;x=Math.abs(x);let a1=.254829592,a2=-.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=.3275911,t=1/(1+p*x);let y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);return s*y}

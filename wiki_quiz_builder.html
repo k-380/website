@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Wikipedia → AIクイズメーカー</title>
+<style>
+:root{--bg:#0d1117;--panel:#161b22;--panel2:#0f141b;--text:#e6edf3;--muted:#8b949e;--line:#30363d;--accent:#58a6ff;--ok:#3fb950;--bad:#f85149;--warn:#d29922}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}
+.wrap{max-width:1050px;margin:auto;padding:24px}.hero{margin:8px 0 24px}.hero h1{font-size:clamp(25px,5vw,42px);margin:0 0 8px}.hero p,.muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:18px}.card h2{margin:0 0 12px;font-size:19px}.step{color:var(--accent);font-weight:700}
+input,textarea,select,button{font:inherit} input,textarea,select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px}textarea{min-height:170px;resize:vertical}label{display:block;margin:10px 0 5px;color:#c9d1d9;font-size:14px}
+.row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:130px}button{border:0;border-radius:9px;padding:10px 14px;background:#238636;color:white;font-weight:700;cursor:pointer}button.secondary{background:#21262d;border:1px solid var(--line)}button.danger{background:#da3633}button:hover{filter:brightness(1.08)}
+pre{white-space:pre-wrap;word-break:break-word;background:var(--panel2);border:1px solid var(--line);padding:13px;border-radius:9px;max-height:380px;overflow:auto}.q{border:1px solid var(--line);border-radius:12px;padding:15px;margin:12px 0;background:var(--panel2)}.qhead{display:flex;justify-content:space-between;gap:10px}.answer{display:none;margin-top:10px;padding:10px;border-left:3px solid var(--ok);background:#122318}.answer.show{display:block}.choices{margin:8px 0;color:#c9d1d9}.pill{font-size:12px;border:1px solid var(--line);padding:2px 7px;border-radius:999px;color:var(--muted)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.empty{text-align:center;color:var(--muted);padding:28px}.small{font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body><main class="wrap">
+<section class="hero"><h1>Wikipedia → AIクイズメーカー</h1><p>WikipediaのURLからAI用プロンプトを作り、返ってきたJSONをクイズとして保存・閲覧します。APIキー不要、1ファイル完結。</p></section>
+
+<section class="card"><h2><span class="step">STEP 1</span> Wikipediaリンクを入力</h2>
+<label>Wikipedia URL</label><input id="wikiUrl" placeholder="https://ja.wikipedia.org/wiki/...">
+<div class="row"><div><label>問題数</label><input id="count" type="number" min="1" max="100" value="10"></div><div><label>難易度</label><select id="difficulty"><option>入門</option><option selected>標準</option><option>難しい</option><option>かなり難しい</option></select></div></div>
+<div class="toolbar"><button id="makePrompt">プロンプト生成</button><button class="secondary" id="copyPrompt">コピー</button></div>
+<pre id="promptOut">ここに生成されたプロンプトが表示されます。</pre></section>
+
+<section class="card"><h2><span class="step">STEP 2</span> AIの回答を貼り付け</h2>
+<p class="muted">上のプロンプトをChatGPT等に入力し、返ってきたJSONをそのまま貼り付けてください。</p>
+<textarea id="aiJson" placeholder='{"title":"...","questions":[...]}'></textarea>
+<div class="toolbar"><button id="importQuiz">クイズを読み込んで保存</button><button class="secondary" id="sample">サンプルJSON</button></div><div id="msg" class="small"></div></section>
+
+<section class="card"><h2><span class="step">STEP 3</span> 保存したクイズ</h2>
+<div class="toolbar"><select id="quizSelect" style="max-width:520px"></select><button class="secondary" id="exportBtn">JSON書き出し</button><button class="danger" id="deleteBtn">削除</button></div>
+<div id="quizView" class="empty">まだクイズがありません。</div></section>
+</main>
+<script>
+const $=s=>document.querySelector(s); const KEY='wikiQuizMaker.v1';
+function load(){try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return []}}
+function save(x){localStorage.setItem(KEY,JSON.stringify(x))}
+function promptText(){
+ const url=$('#wikiUrl').value.trim(), n=Math.max(1,Math.min(100,+$('#count').value||10)), d=$('#difficulty').value;
+ return `次のWikipedia記事を読み、内容理解を確認するクイズを${n}問作成してください。\n\nURL: ${url}\n難易度: ${d}\n\n【重要】\n- 必ず指定URLの記事内容を確認してから作成する。アクセスできない場合は、その旨だけを回答する。\n- 記事の主要概念・人物・出来事・因果関係・用語を幅広く扱う。\n- 単なる細かい数字の暗記に偏らない。\n- 各問は4択で、正解は必ず1つだけにする。\n- answer は choices の0〜3の整数インデックスにする。\n- explanation は、なぜその答えになるかを1〜3文で説明する。\n- 出力は下記形式の「JSONのみ」。Markdownのコードフェンスや前後の説明は付けない。\n\n{\n  "title": "記事名を使ったクイズタイトル",\n  "sourceUrl": "${url}",\n  "questions": [\n    {\n      "question": "問題文",\n      "choices": ["選択肢1", "選択肢2", "選択肢3", "選択肢4"],\n      "answer": 0,\n      "explanation": "解説"\n    }\n  ]\n}`;
+}
+$('#makePrompt').onclick=()=>$('#promptOut').textContent=promptText();
+$('#copyPrompt').onclick=async()=>{await navigator.clipboard.writeText($('#promptOut').textContent);$('#msg').textContent='プロンプトをコピーしました。'};
+function normalize(raw){
+ raw=raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,''); const q=JSON.parse(raw);
+ if(!q||!Array.isArray(q.questions)||!q.questions.length)throw Error('questions がありません');
+ q.questions.forEach((x,i)=>{if(!x.question||!Array.isArray(x.choices)||x.choices.length<2||!Number.isInteger(x.answer)||x.answer<0||x.answer>=x.choices.length)throw Error(`${i+1}問目の形式が不正です`)});
+ q.id=crypto.randomUUID?crypto.randomUUID():Date.now().toString(36); q.savedAt=new Date().toISOString(); q.title=q.title||'無題のクイズ'; return q;
+}
+$('#importQuiz').onclick=()=>{try{const q=normalize($('#aiJson').value);const a=load();a.unshift(q);save(a);renderSelect(q.id);$('#msg').textContent=`「${q.title}」を${q.questions.length}問保存しました。`;}catch(e){$('#msg').textContent='読み込み失敗: '+e.message}};
+function renderSelect(sel){const a=load(), s=$('#quizSelect');s.innerHTML=''; if(!a.length){s.innerHTML='<option>保存データなし</option>';renderQuiz(null);return} a.forEach(q=>{const o=document.createElement('option');o.value=q.id;o.textContent=`${q.title}（${q.questions.length}問）`;s.appendChild(o)}); if(sel)s.value=sel;renderQuiz(a.find(q=>q.id===s.value)||a[0])}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function renderQuiz(q){const v=$('#quizView');if(!q){v.className='empty';v.textContent='まだクイズがありません。';return}v.className='';v.innerHTML=`<h2>${esc(q.title)}</h2><p class="small">${q.sourceUrl?esc(q.sourceUrl)+' ・ ':''}${new Date(q.savedAt).toLocaleString()}</p>`+q.questions.map((x,i)=>`<article class="q"><div class="qhead"><strong>Q${i+1}. ${esc(x.question)}</strong><span class="pill">4択</span></div><div class="choices">${x.choices.map((c,j)=>`${String.fromCharCode(65+j)}. ${esc(c)}`).join('<br>')}</div><button class="secondary reveal" data-i="${i}">答えを見る</button><div class="answer" id="ans${i}"><strong>答え: ${String.fromCharCode(65+x.answer)}. ${esc(x.choices[x.answer])}</strong>${x.explanation?`<div>${esc(x.explanation)}</div>`:''}</div></article>`).join('');
+ v.querySelectorAll('.reveal').forEach(b=>b.onclick=()=>{const a=$('#ans'+b.dataset.i);a.classList.toggle('show');b.textContent=a.classList.contains('show')?'答えを隠す':'答えを見る'});
+}
+$('#quizSelect').onchange=()=>renderQuiz(load().find(q=>q.id===$('#quizSelect').value));
+$('#deleteBtn').onclick=()=>{const id=$('#quizSelect').value;if(!id)return;save(load().filter(q=>q.id!==id));renderSelect()};
+$('#exportBtn').onclick=()=>{const q=load().find(q=>q.id===$('#quizSelect').value);if(!q)return;const blob=new Blob([JSON.stringify(q,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=(q.title||'quiz').replace(/[\\/:*?"<>|]/g,'_')+'.json';a.click();URL.revokeObjectURL(a.href)};
+$('#sample').onclick=()=>{$('#aiJson').value=JSON.stringify({title:'サンプルクイズ',sourceUrl:'https://ja.wikipedia.org/',questions:[{question:'Wikipediaは主に何として知られている？',choices:['オンライン百科事典','動画配信サービス','検索エンジン','SNS'],answer:0,explanation:'Wikipediaは共同編集型のオンライン百科事典です。'}]},null,2)};
+renderSelect();
+</script></body></html>

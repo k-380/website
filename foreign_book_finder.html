@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>洋書探索・全文PDF探索機</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1117;--card:#161b22;--line:#30363d;--text:#e6edf3;--muted:#8b949e;--accent:#58a6ff;--good:#3fb950}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+main{max-width:1000px;margin:auto;padding:28px 18px 60px}.hero{margin-bottom:22px}h1{font-size:clamp(26px,5vw,42px);margin:0 0 8px}.sub{color:var(--muted);line-height:1.7}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin:14px 0}h2{font-size:18px;margin:0 0 14px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.full{grid-column:1/-1}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}input,textarea,select{width:100%;background:#0d1117;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font:inherit}
+textarea{min-height:110px;resize:vertical}.genres{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+button{border:0;border-radius:9px;padding:10px 14px;font-weight:700;cursor:pointer;background:var(--accent);color:#07111d}
+button.secondary{background:#21262d;color:var(--text);border:1px solid var(--line)}.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}
+pre{white-space:pre-wrap;word-break:break-word;background:#0d1117;border:1px solid var(--line);padding:14px;border-radius:9px;min-height:90px}
+.note{font-size:12px;color:var(--muted);line-height:1.6}.good{color:var(--good)}
+@media(max-width:700px){.grid{grid-template-columns:1fr}.genres{grid-template-columns:1fr 1fr}.full{grid-column:auto}}
+</style>
+</head>
+<body><main>
+<section class="hero"><h1>洋書探索・全文PDF探索機</h1><div class="sub">面白そうな洋書を発見 → 合法的な全文公開版を探索 → 購入候補と無料閲覧候補を整理 → Markdownで保存。</div></section>
+<section class="card">
+<h2>1. 探索条件</h2><div class="grid">
+<div class="full"><label>ジャンル（最大5個・日本語OK）</label><div class="genres"><input class="genre" placeholder="例：物理学"><input class="genre" placeholder="数学"><input class="genre" placeholder="言語学"><input class="genre" placeholder="科学史"><input class="genre" placeholder="経営"></div></div>
+<div><label>発売年 From</label><input id="yearFrom" type="number" placeholder="例：1950"></div><div><label>発売年 To</label><input id="yearTo" type="number" placeholder="例：2026"></div>
+<div><label>価格上限</label><input id="price" type="number" placeholder="例：5000"></div><div><label>紹介する本の数</label><input id="count" type="number" value="5" min="1" max="30"></div>
+<div class="full"><label>追加条件</label><input id="extra" placeholder="例：数式が多すぎないもの、英語版優先"></div></div>
+<div class="actions"><button onclick="makePrompt()">AI用プロンプト生成</button><button class="secondary" onclick="copyText('prompt')">コピー</button></div></section>
+<section class="card"><h2>2. AIへ渡すプロンプト</h2><pre id="prompt">条件を入力して「AI用プロンプト生成」を押してください。</pre>
+<div class="actions"><button id="copyPromptBtn" onclick="copyPrompt()">プロンプトをコピー</button></div><p id="copyStatus" class="note"></p>
+<p class="note">Amazon等は「本の発見」に利用し、全文PDFについては出版社・著者・大学・公的機関・正規アーカイブ等、合法性を確認できる公開元だけを候補にします。</p></section>
+<section class="card"><h2>3. AIの調査結果を貼り付け</h2><label>下のJSON形式で返ってきた結果を貼り付け</label>
+<textarea id="result" placeholder='{"books":[{"title":"...","author":"...","isbn":"...","year":2020,"price":"...","description":"...","purchaseUrl":"...","freeFullText":true,"pdfUrl":"...","pdfSource":"..."}]}'></textarea>
+<div class="actions"><button onclick="renderMd()">Markdown整形</button><button class="secondary" onclick="clearAll()">結果をクリア</button></div></section>
+<section class="card"><h2>4. Markdownプレビュー</h2><pre id="md">ここに整理結果が表示されます。</pre><div class="actions"><button onclick="downloadMd()">MDファイル保存</button><button class="secondary" onclick="copyText('md')">Markdownをコピー</button></div></section>
+<section class="card note"><strong class="good">探索方針：</strong> 無料PDFが見つかっても、無断アップロードと思われるものは採用しません。Internet Archive等についても、その資料の公開・貸出条件を確認する前提です。購入ページと合法的な無料全文版を別項目で管理します。</section>
+</main><script>
+let latestMd="";const $=id=>document.getElementById(id);
+function makePrompt(){const genres=[...document.querySelectorAll(".genre")].map(x=>x.value.trim()).filter(Boolean);const yf=$("yearFrom").value,yt=$("yearTo").value,price=$("price").value,count=$("count").value||5,extra=$("extra").value.trim();
+const p=`次の条件で、英語で書かれた洋書をインターネット上で実際に検索し、${count}冊紹介してください。
+
+【条件】
+・ジャンル：${genres.length?genres.join(" / "):"指定なし"}
+・発売年：${yf||"指定なし"} ～ ${yt||"指定なし"}
+・価格上限：${price?price+"円":"指定なし"}
+・追加条件：${extra||"なし"}
+
+【探索手順】
+1. Amazon、出版社、書店、図書館等から条件に合う本を探す。
+2. 各書籍についてタイトル、著者、ISBN、発売年、価格、短い紹介文、購入・書誌確認URLを調べる。
+3. 同じ本の全文が合法的に無料公開されていないか追加検索する。
+4. 無料全文版は、出版社、著者本人、大学・機関リポジトリ、公的機関、正規のオープンアクセス資料など、公開権限を確認できるものだけ採用する。出所不明のPDFや明らかな無断アップロードは除外する。
+5. PDFでなく合法的な全文HTML等しかない場合も、その旨を記録してよい。
+6. 情報を推測で補わない。ISBNや価格等が確認できなければ null とする。
+
+【出力】
+説明文やMarkdownコードフェンスを付けず、次のJSONだけを返してください。
+{
+  "books":[
+    {
+      "title":"原題",
+      "author":"著者",
+      "isbn":"ISBNまたはnull",
+      "year":2020,
+      "price":"確認できた価格またはnull",
+      "description":"日本語で2〜4文の紹介",
+      "purchaseUrl":"購入または書誌確認URL",
+      "freeFullText":true,
+      "pdfUrl":"合法的な全文版URL。なければnull",
+      "pdfSource":"公開元と公開形態。なければnull"
+    }
+  ]
+}`;$("prompt").textContent=p;}
+function renderMd(){try{let raw=$("result").value.trim().replace(/^```(?:json)?\s*/,"").replace(/\s*```$/,"");const data=JSON.parse(raw),books=data.books||[];let out=`# 洋書探索リスト\n\n作成日: ${new Date().toLocaleString("ja-JP")}\n\n`;books.forEach((b,i)=>{out+=`## ${i+1}. ${b.title||"タイトル不明"}\n\n`;out+=`- **著者:** ${b.author||"不明"}\n- **ISBN:** ${b.isbn||"不明"}\n- **発売年:** ${b.year||"不明"}\n- **価格:** ${b.price||"不明"}\n`;if(b.purchaseUrl)out+=`- **購入・書誌:** ${b.purchaseUrl}\n`;out+=`- **無料全文:** ${b.freeFullText?"あり":"確認できず"}\n`;if(b.pdfUrl)out+=`- **全文URL:** ${b.pdfUrl}\n`;if(b.pdfSource)out+=`- **公開元:** ${b.pdfSource}\n`;out+=`\n### 紹介\n${b.description||"紹介なし"}\n\n---\n\n`;});latestMd=out;$("md").textContent=out;}catch(e){$("md").textContent="JSONを解析できませんでした。\n\n"+e.message;}}
+async function copyText(id){const t=$(id).textContent;try{await navigator.clipboard.writeText(t);return true}catch(e){const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();const ok=document.execCommand("copy");ta.remove();return ok}}
+async function copyPrompt(){const ok=await copyText("prompt");const s=$("copyStatus"),b=$("copyPromptBtn");s.textContent=ok?"コピーしました。ChatGPT / Gemini / Grok などへそのまま貼り付けられます。":"コピーできませんでした。プロンプトを選択してコピーしてください。";b.textContent=ok?"✓ コピー済み":"プロンプトをコピー";if(ok)setTimeout(()=>{b.textContent="プロンプトをコピー";s.textContent=""},1800)}
+function downloadMd(){if(!latestMd)renderMd();if(!latestMd)return;const blob=new Blob([latestMd],{type:"text/markdown;charset=utf-8"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="foreign_books.md";a.click();URL.revokeObjectURL(a.href)}
+function clearAll(){$("result").value="";$("md").textContent="ここに整理結果が表示されます。";latestMd=""}
+</script></body></html>

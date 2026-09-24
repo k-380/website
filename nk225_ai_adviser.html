@@ -11,10 +11,12 @@
 <section class="card third"><h2>① 調査対象</h2><div id="checks" class="checks"></div><div class="buttons"><button class="secondary" onclick="setChecks(true)">全選択</button><button class="secondary" onclick="setChecks(false)">全解除</button></div></section>
 <section class="card third"><h2>② 発注条件</h2><div class="fields"><div><label>調査期間（日）</label><input id="days" type="number" value="7" min="1"></div><div><label>基準価格 S（円）</label><input id="spot" type="number" value="67000" step="5"></div><div><label>買い本数</label><input id="buyN" type="number" value="5" min="1"></div><div><label>売り本数</label><input id="sellN" type="number" value="5" min="1"></div><div><label>1注文の枚数</label><input id="qty" type="number" value="1" min="1"></div><div><label>日経VI（%）</label><input id="vi" type="number" value="24.23" step="0.01"></div><div><label>期限までの時間</label><input id="hours" type="number" value="15" step="0.5"></div><div><label>AI名</label><input id="aiName" value="AI"></div></div></section>
 <section class="card third"><h2>③ 価格モデル</h2><div class="fields"><div><label>年間取引日数</label><input id="daysYear" type="number" value="252"></div><div><label>1日の対象時間（時間）</label><input id="dayHours" type="number" value="24"></div></div><p class="note">約定確率は、日経VIを年率ボラとみなし、ドリフト0のブラウン運動による「期限までの初回到達確率」の簡易近似です。実際のギャップ、ボラ・スマイル、トレンド、板、指値優先順位等は反映しません。</p></section>
-<section class="card half"><h2>④ AI用プロンプト</h2><textarea id="prompt"></textarea><div class="buttons"><button onclick="makePrompt()">プロンプト生成</button><button class="secondary" onclick="copyText('prompt')">コピー</button></div></section>
-<section class="card half"><h2>⑤ AI回答を貼り付け</h2><textarea id="answer" placeholder="AIの回答全文を貼り付けてください。ORDER_DATA ブロックを自動抽出します。"></textarea><div class="buttons"><button onclick="parseAnswer()">回答を解析</button><button class="secondary" onclick="loadSample()">サンプル読込</button><button class="danger" onclick="clearAll()">保存データ削除</button></div><div id="msg" class="note"></div></section>
-<section class="card"><h2>⑥ レジーム・リスク概要</h2><div class="stats"><div class="stat"><small>市場レジーム</small><b id="regime">—</b></div><div class="stat"><small>判定確信度</small><b id="confidence">—</b></div><div class="stat"><small>最大同時建玉</small><b id="maxPos">—</b></div><div class="stat"><small>全注文TP合計</small><b id="maxProfit">—</b></div><div class="stat"><small>全注文SL合計</small><b id="maxLoss">—</b></div><div class="stat"><small>期限内 1σ</small><b id="sigma">—</b></div></div><p class="note">「全注文TP/SL合計」は各注文が個別に利確/損切りした場合の単純合計で、同一価格経路で同時に実現可能な真の最大利益・最大損失を保証するものではありません。</p></section>
-<section class="card"><h2>⑦ 注文一覧</h2><div class="tablewrap"><table><thead><tr><th>注文</th><th>方式</th><th>新規</th><th>利確</th><th>損切</th><th>枚数</th><th>利益</th><th>損失</th><th>距離σ</th><th>到達確率</th></tr></thead><tbody id="orders"><tr><td colspan="10" style="text-align:center;color:var(--muted)">AI回答を解析すると表示されます</td></tr></tbody></table></div></section>
+<section class="card half"><h2>④ 市場調査プロンプト</h2><textarea id="researchPrompt"></textarea><div class="buttons"><button onclick="makeResearchPrompt()">調査プロンプト生成</button><button class="secondary" onclick="copyText('researchPrompt')">コピー</button></div><p class="note">第1段階はデータ収集専用。注文・相場予測はさせず、取得できない値は null、出典・取得時刻・限月をJSONへ保存します。</p></section>
+<section class="card half"><h2>⑤ market_data.json</h2><textarea id="marketJson" placeholder="市場調査AIが返したJSONを貼り付けるか、JSONファイルを読み込んでください。"></textarea><div class="buttons"><input id="jsonFile" type="file" accept=".json,application/json" style="display:none"><button onclick="$('jsonFile').click()">JSONファイル読込</button><button class="secondary" onclick="validateMarketJson()">JSON検証</button></div><div id="jsonMsg" class="note"></div></section>
+<section class="card half"><h2>⑥ 注文案作成プロンプト</h2><textarea id="orderPrompt" placeholder="market_data.jsonを読み込むと、同じ市場データだけを使う注文案プロンプトを生成できます。"></textarea><div class="buttons"><button onclick="makeOrderPrompt()">注文プロンプト生成</button><button class="secondary" onclick="copyText('orderPrompt')">コピー</button></div></section>
+<section class="card half"><h2>⑦ 注文案AI回答</h2><textarea id="answer" placeholder="注文案AIの回答全文を貼り付けてください。REGIME / ORDER_DATA を自動抽出します。"></textarea><div class="buttons"><button onclick="parseAnswer()">回答を解析</button><button class="secondary" onclick="loadSample()">サンプル読込</button><button class="danger" onclick="clearAll()">保存データ削除</button></div><div id="msg" class="note"></div></section>
+<section class="card"><h2>⑧ レジーム・リスク概要</h2><div class="stats"><div class="stat"><small>市場レジーム</small><b id="regime">—</b></div><div class="stat"><small>判定確信度</small><b id="confidence">—</b></div><div class="stat"><small>最大同時建玉</small><b id="maxPos">—</b></div><div class="stat"><small>全注文TP合計</small><b id="maxProfit">—</b></div><div class="stat"><small>全注文SL合計</small><b id="maxLoss">—</b></div><div class="stat"><small>期限内 1σ</small><b id="sigma">—</b></div></div><p class="note">「全注文TP/SL合計」は各注文が個別に利確/損切りした場合の単純合計で、同一価格経路で同時に実現可能な真の最大利益・最大損失を保証するものではありません。</p></section>
+<section class="card"><h2>⑨ 注文方法・注文一覧</h2><div class="tablewrap"><table><thead><tr><th>注文</th><th>方式</th><th>新規</th><th>利確</th><th>損切</th><th>枚数</th><th>利益</th><th>損失</th><th>距離σ</th><th>到達確率</th></tr></thead><tbody id="orders"><tr><td colspan="10" style="text-align:center;color:var(--muted)">AI回答を解析すると表示されます</td></tr></tbody></table></div></section>
 <section class="card"><h2>機械可読フォーマット</h2><p class="note">AIには回答末尾へ以下を必ず付けるようプロンプトで指定します。新規値はSからの差、TP/SLは約定価格からの差です。</p><pre class="note">REGIME,BOX
 REGIME_CONFIDENCE,75
 ORDER_DATA
@@ -27,96 +29,92 @@ NIKKEI_VI,24.23</pre></section>
 <script>
 const symbols=['日経225先物','TOPIX先物','NYダウ先物','NASDAQ100先物','SOX指数','USD/JPY','WTI原油','金（ゴールド）','VIX','日経平均VI'];
 const $=id=>document.getElementById(id); const yen=n=>'¥'+Math.round(n).toLocaleString('ja-JP');
-function init(){ $('checks').innerHTML=symbols.map((s,i)=>`<label class="check"><input type="checkbox" value="${s}" ${i<10?'checked':''}>${s}</label>`).join(''); load(); makePrompt(); }
+function init(){ $('checks').innerHTML=symbols.map((s,i)=>`<label class="check"><input type="checkbox" value="${s}" ${i<10?'checked':''}>${s}</label>`).join(''); load(); makeResearchPrompt(); if($('marketJson').value.trim())makeOrderPrompt(); }
 function setChecks(v){document.querySelectorAll('#checks input').forEach(x=>x.checked=v);makePrompt();save()}
 function selected(){return [...document.querySelectorAll('#checks input:checked')].map(x=>x.value)}
-function makePrompt(){let sy=selected(); let txt=`日経225マイクロ先物について、次回ナイトセッション開始前に予約発注するIFD-OCO注文案を作成してください。
+function makeResearchPrompt(){let sy=selected();let txt=`あなたは市場データ収集担当です。投資判断、相場予測、レジーム判定、注文提案は行わないでください。
 
-【取引ルール】
-・取引対象：日経225マイクロ先物
-・SBI証券のHYPER先物を利用する想定です。
-・ナイトセッション開始前に予約発注します。
-・新規注文の有効期間は、そのナイトセッション限りとします。
-・未約定の新規注文はナイトセッション終了で失効させます。
-・約定後、OCOのTPまたはSL到達で決済します。
-・TP/SL未到達の残存建玉はナイト終了時の引成で全て決済し、翌営業日の日中へ持ち越しません。
-
-【市場調査】
-Web上の最新情報を必ず検索し、過去${$('days').value}日について次の市場を調査してください：
+Web上の最新情報を検索し、過去${$('days').value}日について次の市場を調査してください。
 ${sy.map(x=>'・'+x).join('\n')}
 
-取得可能な範囲で現在値、期間始値・高値・安値・騰落率、各日の高安値幅、日中とナイトの値動き、直近24〜48時間の急変、ボラティリティ変化、重要イベントを調査してください。取得できない値は推測せず「取得できない」としてください。
+【収集ルール】
+・取得値を推測しない。取得できない値は null とする。
+・先物は可能な限り商品名と限月を特定し、現物・先物・CFDを混同しない。
+・各値のデータ時点、タイムゾーン、取得時刻 retrieved_at、source URLを記録する。
+・日経225先物は可能な限りDAY/NIGHTを分離し、OHLCを収集する。
+・現在値、期間始値・高値・安値、各日のOHLC、直近24〜48時間の値動きを収集する。
+・VIX、日経平均VI、NASDAQ100先物、SOX指数、USD/JPYを特に重視する。
+・異なる情報源で値が食い違う場合、時刻・限月・商品の違いを確認し、解消不能なら null として notes に理由を書く。
+・重要イベントは価格データと分離して events 配列に保存する。
+・数字の意味付けや売買判断はしない。
+・JSON以外の文章、Markdownコードフェンスを出力しない。
 
-【データ鮮度】
-・日経225先物、VIX、日経平均VI、NASDAQ100先物、SOX指数、USD/JPYについて、レジーム判定に使用する値には必ず取得日時またはデータ時点を併記してください。
-・原則として24時間以上古い値を「現在の市場状態」の判定根拠に使用しないでください。最新値が取得できない場合は古い値で補完せず「最新値を取得できない」と明記し、CONFIDENCEを下げてください。
-・休場・取引時間外などで24時間以内の更新値が存在しない場合は、直近取引時点を明記し、その制約を判定に反映してください。
-・週間データと直近24〜48時間のデータが逆方向の場合、直近データをレジーム判定で優先してください。
-・異なる情報源で値が食い違う場合は、時刻・限月・現物/先物の違いを確認し、解消できなければ推測で統合しないでください。
+【JSON形式】
+{
+  "schema_version":"1.0",
+  "retrieved_at":"ISO8601",
+  "timezone":"Asia/Tokyo",
+  "markets":{
+    "nikkei225_futures":{"instrument":null,"contract":null,"current":{"value":null,"as_of":null,"source":null},"sessions":[{"date":"YYYY-MM-DD","session":"DAY","open":null,"high":null,"low":null,"close":null,"source":null}]},
+    "topix_futures":{},
+    "dow_futures":{},
+    "nasdaq100_futures":{},
+    "sox":{},
+    "usdjpy":{},
+    "wti":{},
+    "gold":{},
+    "vix":{},
+    "nikkei_vi":{}
+  },
+  "events":[{"datetime":null,"title":null,"description":null,"source":null}],
+  "missing_data":[{"field":null,"reason":null}],
+  "notes":[]
+}
 
-特に日経225先物自身の直近ナイト実現値幅、VIX、日経平均VI、NASDAQ100先物、SOX指数、USD/JPYを重視し、米国市場と重なる時間帯も考慮して次回ナイトの想定値幅を推定してください。週間騰落率だけでなく直近の価格変化とボラティリティを重視してください。
+各市場には可能な範囲で current、daily または sessions、source を格納してください。数値は数値型、欠損は null にしてください。`; $('researchPrompt').value=txt;save();}
+function validateMarketJson(){try{let d=JSON.parse($('marketJson').value);if(!d.markets)throw new Error('markets がありません');$('jsonMsg').innerHTML='<span class="success">JSONを読み取りました。取得時刻: '+(d.retrieved_at||'不明')+'</span>';makeOrderPrompt();return d}catch(e){$('jsonMsg').innerHTML='<span class="error">JSONエラー: '+e.message+'</span>';return null}}
+function makeOrderPrompt(){let raw=$('marketJson').value.trim();if(!raw){$('jsonMsg').innerHTML='<span class="error">先に market_data.json を読み込んでください。</span>';return}let d;try{d=JSON.parse(raw)}catch(e){$('jsonMsg').innerHTML='<span class="error">JSONエラー: '+e.message+'</span>';return}let txt=`日経225マイクロ先物について、次回ナイトセッション開始前に予約発注するIFD-OCO注文案を作成してください。
+
+【最重要：市場データ】
+以下のJSONを市場価格データの唯一の入力として使用してください。価格・指数・為替についてWeb検索で補完、置換、推測しないでください。nullや欠損は欠損のまま扱い、CONFIDENCEへ反映してください。JSON内のsourceは出典確認用です。重要イベントの解釈に追加情報が必要な場合だけWeb検索可とします。
+
+----- MARKET_DATA_START -----
+${JSON.stringify(d,null,2)}
+----- MARKET_DATA_END -----
+
+【取引ルール】
+・取引対象：日経225マイクロ先物。SBI証券HYPER先物を想定。
+・ナイト開始前に予約発注。新規注文はそのナイト限り。未約定は終了で失効。
+・約定後はOCOのTP/SLで決済。未決済建玉はナイト終了時の引成で全決済し翌日へ持ち越さない。
+・基準価格Sは実際の予約発注時にHTMLへ入力するため、注文値はSからの差で示す。
 
 【レジーム判定】
-注文作成前に現在の市場を必ず BOX / TREND_UP / TREND_DOWN / UNCERTAIN の4種類のいずれかに分類してください。
+必ず BOX / TREND_UP / TREND_DOWN / UNCERTAIN の1つに分類し CONFIDENCE 0〜100を付ける。
+日経225先物の直近24〜48時間の高安切上げ/切下げ、DAY/NIGHT方向、ブレイクとレンジ復帰、実現値幅の拡大/縮小を重視する。
+NASDAQ100先物・SOX・NYダウ先物との方向一致、USD/JPYとの整合、VIX・日経平均VIの変化、市場間整合性も評価する。
+BOXは単なる方向不明ではなく、レンジ境界から中央への平均回帰が複数回確認できる場合に限る。方向不明＋ボラ拡大や市場間不一致ならUNCERTAINを優先する。
 
-A. 日経225先物：直近24〜48時間の高安切上げ/切下げ、日中とナイトの方向、直近高安ブレイク、ブレイク後のレンジ復帰、実現値幅の拡大/縮小、連続した一方向の値動き、押し戻しの深さ、取得可能ならVWAPや移動平均からの乖離。
-B. 海外株：NASDAQ100先物・SOX指数・NYダウ先物と日経の方向一致。NASDAQ100とSOXと日経が同方向ならTREND判定を強める。
-C. USD/JPY：円安＋日経上昇、円高＋日経下落は方向一致。逆の組合せは不一致。
-D. ボラティリティ：VIX・日経平均VI・日経先物実現値幅の水準と直近変化。値幅拡大＋方向性ならTREND、値幅縮小＋高安更新失敗ならBOXを強める。
-E. 市場間整合性：複数市場が同方向ならTREND、不一致ならBOXまたはUNCERTAIN寄り。
+【注文方式】
+・BOX：すべてLIMIT。BUYはSより下、SELLはSより上。平均回帰狙い。
+・TREND_UP / TREND_DOWN：すべてSTOP。ブレイクアウト/トレンド継続狙い。単純等間隔は禁止。
+・UNCERTAIN：注文数削減、Sから遠ざける、発注見送り可。LIMIT/STOPを混在させる場合は、既存建玉との衝突と取消条件を必ず説明する。
+・BOX/TRENDでは原則BUY ${$('buyN').value}本、SELL ${$('sellN').value}本。
+・TP/SLは一律にせずJSONの直近ボラに合わせる。
+・集中リスクとして逆張りナンピン化、STOP連続約定、最大同時建玉、後続取消、連続SL後取消を評価する。
+・引成価格は事前に推測しない。
 
-【BOXとUNCERTAINの判別ルール】
-・BOXは単なる「方向不明」ではありません。「平均回帰が優勢である積極的な証拠がある状態」と定義してください。
-・単に一定期間の高値・安値の範囲内に価格が存在することだけをBOXの根拠にしてはいけません。ほとんどの相場は任意の期間を取れば何らかのレンジ内にあるためです。
-・BOX判定には、直近のレンジ上限・下限への接近または一時的ブレイク後に、レンジ中央方向への回帰が複数回確認できることを重視してください。
-・BOXと判定する場合、推定BOX上限・下限を具体的な価格で明示し、その境界が直近24〜48時間でも有効である根拠を説明してください。
-・日経平均VI、VIX、日経225先物実現値幅のいずれかが急拡大している場合、方向性がまだ明確でないことだけを理由にBOXとしてはいけません。方向不明＋ボラ拡大、市場間シグナル不一致、レンジブレイク懸念が強い場合はUNCERTAINを優先的に検討してください。
-・BOX判定を誤ってUNCERTAINとする機会損失より、UNCERTAINをBOXと誤判定して逆張りを連続約定させる損失を重く扱ってください。BOX判定にはTRENDやUNCERTAINより厳しい証拠を要求してください。
-
-REGIME: BOX / TREND_UP / TREND_DOWN / UNCERTAIN
-CONFIDENCE: 0〜100
-として、BOX支持材料、TREND支持材料、判定を不確実にする材料をそれぞれ説明してください。
-
-【注文方式の切替】
-基準価格をSとします。
-・BOX：新規注文はすべてLIMIT。下落をBUY指値、上昇をSELL指値で平均回帰を狙う。通常変動、大きめ変動、オーバーシュートを混在。ただし推定BOX境界を明確に突破した後も同方向への逆張りLIMITが連続約定する設計は禁止します。BOX外側にLIMITを置く場合は、その価格でもBOX維持と判断する具体的根拠を示してください。
-・TREND_UP / TREND_DOWN：新規注文はすべてSTOP。平均回帰ではなくブレイクアウト/トレンド継続を狙う。上下双方にSTOPを置いてよいが、トレンド方向は約定しやすい継続位置を厚め、逆方向はトレンド崩壊・急反転が確認できる位置にする。単純な等間隔配置は禁止。
-・UNCERTAIN：無理に10本作らず、注文数削減、Sから遠ざける、発注見送りも可。
-
-BOXまたはTREND判定では原則BUY ${$('buyN').value}本、SELL ${$('sellN').value}本。各注文について注文方式、新規価格、TP、SL、ナイト中の新規価格到達可能性、狙い、想定する約定時の相場状態を示してください。TP/SLは一律にせず直近ボラに合わせてください。
-
-【集中リスク】
-BOXでは一方向急変時の逆張り連続約定＝ナンピン化、TRENDでは同方向STOPの連続約定によるポジション急増を評価してください。特にBOXでは、最初の同方向LIMIT約定後に後続の同方向注文を残すなら、その理由を明示してください。推定BOX境界を明確に突破した場合は、後続の同方向逆張り注文を取消す前提を優先してください。先行注文約定後の後続取消、一定数約定後の残注文取消、連続SL後の残注文取消、最大同時建玉数などを提案してください。
-
-ナイト引けでは残存建玉を引成決済します。引成価格は事前に分からないため最終損益を確定値として推測しないでください。
-
-最終的に、注文配置が判定レジームと論理的に一致しているか確認してください。BOXなのにブレイクアウト型、TRENDなのに逆張りナンピン型になっていないかを特に確認してください。
-
-【機械可読出力】
-回答末尾に説明文とは別に必ず以下を付けてください。数値単位は円。金額の桁区切りカンマは禁止。新規値はSからの差、TP/SLは約定価格からの差です。
-LIMITではBUY新規は負、SELL新規は正。STOPではBUY STOPは原則Sより上、SELL STOPは原則Sより下なので、Sとの差をそのまま符号付きで記載してください。BUYのTPは正・SLは負、SELLのTPは負・SLは正です。
+【回答】
+まず使用データの鮮度・欠損を確認し、BOX支持材料、TREND支持材料、不確実材料、想定ナイト値幅、注文ロジック、集中リスクを説明する。最後に必ず次の機械可読形式を付ける。数値単位は円、桁区切りカンマ禁止。新規値はSからの差、TP/SLは約定価格からの差。
 
 REGIME,BOX
 REGIME_CONFIDENCE,75
 ORDER_DATA
 BUY,LIMIT,-200,+250,-300
-...
 SELL,LIMIT,+250,-250,+300
-...
 END_ORDER_DATA
 NIKKEI_VI,24.23
 
-TREND時の例：
-REGIME,TREND_UP
-REGIME_CONFIDENCE,80
-ORDER_DATA
-BUY,STOP,+200,+350,-250
-BUY,STOP,+400,+450,-300
-SELL,STOP,-300,-350,+250
-...
-END_ORDER_DATA
-
-日経平均VIを取得できなければNIKKEI_VI行は出力しないでください。`; $('prompt').value=txt;save();}
+LIMITではBUY新規は負、SELL新規は正。STOPではBUYは原則正、SELLは原則負。BUYのTPは正・SLは負、SELLのTPは負・SLは正。日経平均VIがJSONで取得できていなければNIKKEI_VI行は出力しない。`; $('orderPrompt').value=txt;save();}
 function norm(s){return Number(String(s).replace(/[＋+]/g,'').replace(/−/g,'-').replace(/,/g,''))}
 function parseAnswer(){let t=$('answer').value; let m=t.match(/ORDER_DATA([\s\S]*?)END_ORDER_DATA/i); if(!m){$('msg').innerHTML='<span class="error">ORDER_DATA ブロックが見つかりません。</span>';return} let arr=[]; m[1].trim().split(/\n/).forEach(line=>{let p=line.trim().split(/\s*,\s*/);if(p.length>=5&&/^(BUY|SELL)$/i.test(p[0])&&/^(LIMIT|STOP)$/i.test(p[1])) arr.push({side:p[0].toUpperCase(),type:p[1].toUpperCase(),entry:norm(p[2]),tp:norm(p[3]),sl:norm(p[4])});}); let rm=t.match(/REGIME\s*,\s*(BOX|TREND_UP|TREND_DOWN|UNCERTAIN)/i); let cm=t.match(/REGIME_CONFIDENCE\s*,\s*(\d+(?:\.\d+)?)/i); let vm=t.match(/NIKKEI_VI\s*,\s*([\d.]+)/i); let regime=rm?rm[1].toUpperCase():'UNKNOWN', confidence=cm?Number(cm[1]):null; if(vm)$('vi').value=vm[1]; if(!arr.length&&regime!=='UNCERTAIN'){$('msg').innerHTML='<span class="error">LIMIT/STOP付きの注文行を読み取れませんでした。</span>';return} localStorage.setItem('orders',JSON.stringify(arr)); localStorage.setItem('regime',regime); localStorage.setItem('regimeConfidence',confidence==null?'':String(confidence)); $('msg').innerHTML=`<span class="success">レジーム ${regime}${confidence==null?'':' / 確信度 '+confidence+'%'}、${arr.length}本の注文を読み取りました。</span>`; render(arr,regime,confidence);save();}
 function erf(x){let s=x<0?-1:1;x=Math.abs(x);let a1=.254829592,a2=-.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=.3275911,t=1/(1+p*x);let y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);return s*y}
@@ -139,8 +137,8 @@ SELL,STOP,-850,-550,+350
 SELL,STOP,-1150,-650,+400
 SELL,STOP,-1500,-800,+450
 END_ORDER_DATA`;parseAnswer()}
-function save(){let d={days:$('days').value,spot:$('spot').value,buyN:$('buyN').value,sellN:$('sellN').value,qty:$('qty').value,vi:$('vi').value,hours:$('hours').value,aiName:$('aiName').value,answer:$('answer').value,checks:selected()};localStorage.setItem('mfLab',JSON.stringify(d))}
-function load(){try{let d=JSON.parse(localStorage.getItem('mfLab'));if(d){['days','spot','buyN','sellN','qty','vi','hours','aiName','answer'].forEach(k=>{if(d[k]!=null)$(k).value=d[k]});if(d.checks)document.querySelectorAll('#checks input').forEach(x=>x.checked=d.checks.includes(x.value))}let o=JSON.parse(localStorage.getItem('orders'));if(o)render(o,localStorage.getItem('regime')||'UNKNOWN',Number(localStorage.getItem('regimeConfidence')||NaN))}catch(e){}}
+function save(){let d={days:$('days').value,spot:$('spot').value,buyN:$('buyN').value,sellN:$('sellN').value,qty:$('qty').value,vi:$('vi').value,hours:$('hours').value,aiName:$('aiName').value,answer:$('answer').value,marketJson:$('marketJson').value,checks:selected()};localStorage.setItem('mfLab',JSON.stringify(d))}
+function load(){try{let d=JSON.parse(localStorage.getItem('mfLab'));if(d){['days','spot','buyN','sellN','qty','vi','hours','aiName','answer','marketJson'].forEach(k=>{if(d[k]!=null)$(k).value=d[k]});if(d.checks)document.querySelectorAll('#checks input').forEach(x=>x.checked=d.checks.includes(x.value))}let o=JSON.parse(localStorage.getItem('orders'));if(o)render(o,localStorage.getItem('regime')||'UNKNOWN',Number(localStorage.getItem('regimeConfidence')||NaN))}catch(e){}}
 function clearAll(){localStorage.removeItem('mfLab');localStorage.removeItem('orders');localStorage.removeItem('regime');localStorage.removeItem('regimeConfidence');location.reload()}
-document.addEventListener('input',e=>{if(['spot','qty','vi','hours','daysYear','dayHours'].includes(e.target.id)){let o=JSON.parse(localStorage.getItem('orders')||'null');if(o)render(o)} if(e.target.closest('#checks')||['days','buyN','sellN'].includes(e.target.id))makePrompt();save()});init();
+$('jsonFile').addEventListener('change',e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{$('marketJson').value=r.result;validateMarketJson();save()};r.readAsText(f)});document.addEventListener('input',e=>{if(['spot','qty','vi','hours','daysYear','dayHours'].includes(e.target.id)){let o=JSON.parse(localStorage.getItem('orders')||'null');if(o)render(o)} if(e.target.closest('#checks')||['days'].includes(e.target.id))makeResearchPrompt(); if(['buyN','sellN'].includes(e.target.id)&&$('marketJson').value.trim())makeOrderPrompt();save()});init();
 </script></body></html>

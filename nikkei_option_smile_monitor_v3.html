@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>日経225オプション 理論価格・スマイル表</title>
+<style>
+:root{--bg:#0b1020;--panel:#121a2d;--panel2:#18233a;--text:#edf3ff;--muted:#9db0cf;--line:#2b3a59;--accent:#7dd3fc;--hot:#fbbf24;--atm:#a78bfa;--good:#34d399}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
+main{max-width:1500px;margin:auto;padding:18px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h1{font-size:22px;margin:0 0 4px}.sub{color:var(--muted);font-size:13px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-top:14px}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:5px} input,select{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:#0d1527;color:var(--text);font-size:15px}
+.metric{padding:10px;background:var(--panel2);border-radius:9px}.metric b{display:block;font-size:17px;margin-top:4px}.rowtitle{font-weight:700;margin:16px 0 8px}
+.tablewrap{overflow:auto;max-height:68vh;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:7px 9px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-size:12px}
+th{position:sticky;top:0;background:#17233b;z-index:3}th:first-child,td:first-child{position:sticky;left:0;background:#17233b;z-index:2;text-align:left}
+th:first-child{z-index:4}.atmrow td:first-child{color:#d8b4fe;font-weight:800}.smile{background:rgba(251,191,36,.22)!important;outline:2px solid var(--hot);outline-offset:-2px;font-weight:800}.atmcell{background:rgba(167,139,250,.22)!important}
+.legend{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:8px 0}.dot{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:5px}.warn{color:#fca5a5;font-size:12px;margin-top:8px}
+canvas{width:100%;height:250px;background:#0d1527;border-radius:10px}
+.small{font-size:11px;color:var(--muted)} button{padding:10px 14px;border:0;border-radius:8px;background:#2563eb;color:white;font-weight:700;cursor:pointer}
+
+.status{font-size:20px;font-weight:900;padding:12px;border-radius:10px;background:#18233a}
+.hist-controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.pos{color:#fbbf24}.neg{color:#7dd3fc}
+</style>
+</head>
+<body><main>
+<div class="card">
+<h1>日経225オプション 理論価格・スマイル表</h1>
+<div class="sub">Black-76。先物価格と市場価格/IVの観測点からATM IV・10Δ IVを求め、3点スマイルを推定します。</div>
+<div class="grid">
+ <div><label>先物価格 F</label><input id="F" type="number" step="10" value="65630"></div>
+ <div><label>SQ日時（日本時間）</label><input id="expiry" type="datetime-local"></div>
+ <div><label>無リスク金利 %</label><input id="rate" type="number" step=".01" value="0.50"></div>
+ <div class="metric"><label>残存時間</label><b id="remain">-</b></div>
+ <div class="metric"><label>ATM（500円刻み）</label><b id="atm">-</b></div>
+</div>
+
+<div class="rowtitle">ATM IV</div>
+<div class="grid">
+ <div><label>ATM価格の種類</label><select id="atmType"><option value="C">Call</option><option value="P">Put</option></select></div>
+ <div><label>ATM市場価格（円）</label><input id="atmPrice" type="number" step="1" value="900"></div>
+ <div class="metric"><label>逆算 ATM IV</label><b id="atmIvOut">-</b></div>
+</div>
+
+<div class="rowtitle">推定10Δストライク（ATM IVを初期値に自動探索）</div>
+<div class="grid">
+ <div class="metric"><label>推奨 P10</label><b id="recP">-</b><button type="button" id="setP">P10欄へセット</button></div>
+ <div class="metric"><label>推奨 C10</label><b id="recC">-</b><button type="button" id="setC">C10欄へセット</button></div>
+ <div class="metric"><label>探索ロジック</label><b style="font-size:13px">500円刻みで |Δ|=0.10 に最も近い銘柄</b></div>
+</div>
+<div class="small">初回はATM IV一定で探索します。P10/C10の市場価格を入力すると、その実測IVを使って各サイドの10Δ候補を再探索します。</div>
+
+<div class="rowtitle">10Δ Put / Call</div>
+<div class="grid">
+ <div><label>P10 ストライク</label><input id="pK" type="number" step="500" value="61000"></div>
+ <div><label>P10 入力方法</label><select id="pMode"><option value="price">市場価格→IV</option><option value="iv">IV直接入力</option></select></div>
+ <div><label>P10 市場価格 / IV%</label><input id="pVal" type="number" step=".01" value="180"></div>
+ <div class="metric"><label>P10 IV / Delta</label><b id="pOut">-</b></div>
+ <div><label>C10 ストライク</label><input id="cK" type="number" step="500" value="70000"></div>
+ <div><label>C10 入力方法</label><select id="cMode"><option value="price">市場価格→IV</option><option value="iv">IV直接入力</option></select></div>
+ <div><label>C10 市場価格 / IV%</label><input id="cVal" type="number" step=".01" value="125"></div>
+ <div class="metric"><label>C10 IV / Delta</label><b id="cOut">-</b></div>
+</div>
+
+<div class="rowtitle">表設定</div>
+<div class="grid">
+ <div><label>ATM上下のストライク本数</label><input id="nStrike" type="number" min="2" max="30" value="10"></div>
+ <div><label>IV最小 %</label><input id="ivMin" type="number" step="1" value="10"></div>
+ <div><label>IV最大 %</label><input id="ivMax" type="number" step="1" value="45"></div>
+ <div><label>IV刻み pt</label><input id="ivStep" type="number" step=".5" value="1"></div>
+</div>
+<div class="warn" id="warning"></div>
+</div>
+
+
+<div class="card">
+ <div class="rowtitle">継続監視・P盛りモニター</div>
+ <div class="grid">
+  <div><label>監視Putストライク</label><input id="watchK" type="number" step="500" value="64000"></div>
+  <div><label>監視Put 実勢価格</label><input id="watchPrice" type="number" step="1" placeholder="例 655"></div>
+  <div class="metric"><label>推定スマイル理論値</label><b id="watchTheo">-</b></div>
+  <div class="metric"><label>実勢IV</label><b id="watchIV">-</b></div>
+  <div class="metric"><label>スマイルIV</label><b id="watchSmileIV">-</b></div>
+  <div class="metric"><label>IV乖離</label><b id="watchGap">-</b></div>
+ </div>
+ <div class="hist-controls">
+  <button type="button" id="saveSnap">現在値を記録</button>
+  <button type="button" id="exportCsv">CSV書き出し</button>
+  <button type="button" id="exportJson">JSON書き出し</button>
+  <button type="button" id="clearHist">履歴消去</button>
+ </div>
+ <div class="status" id="alertState">履歴を記録すると変化を判定します</div>
+ <div class="small">判定は直近記録との比較です。先物下落と同時に監視Putのスマイル対比IV乖離が拡大した場合を「下げのP盛り」と表示します。これは警戒指標であり、将来の価格方向を保証するものではありません。</div>
+ <div class="rowtitle">履歴</div>
+ <div class="tablewrap" style="max-height:260px"><table id="histTable"></table></div>
+ <div class="rowtitle">時系列：先物（左の数値）とPut IV乖離（右の数値）</div>
+ <canvas id="histChart" width="1200" height="260"></canvas>
+</div>
+
+<div class="card"><div class="rowtitle">推定スマイル</div><canvas id="chart" width="1200" height="250"></canvas>
+<div class="small">アンカー：P10 / ATM / C10。log-moneyness x=ln(K/F) に対する二次式で3点を補間しています。外挿部は参考値です。</div></div>
+
+<div class="card">
+<div class="rowtitle">オプション表：縦＝ストライク、横＝IV、セル＝Black-76理論価格</div>
+<div class="legend"><span><i class="dot" style="background:#fbbf24"></i>推定スマイルに最も近いIVセル</span><span><i class="dot" style="background:#a78bfa"></i>ATM行</span></div>
+<div class="grid" style="margin-bottom:10px"><div><label>表示価格</label><select id="tableType"><option value="auto">OTM側（ATM以上Call / ATM未満Put）</option><option value="C">Call</option><option value="P">Put</option></select></div></div>
+<div class="tablewrap"><table id="matrix"></table></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+function erf(x){const s=x<0?-1:1; x=Math.abs(x); const a1=.254829592,a2=-.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=.3275911; const t=1/(1+p*x); return s*(1-(((((a5*t+a4)*t+a3)*t+a2)*t+a1)*t)*Math.exp(-x*x));}
+function N(x){return .5*(1+erf(x/Math.sqrt(2)))}
+function price(F,K,T,r,s,type){if(T<=0||s<=0)return Math.max(type==='C'?F-K:K-F,0);let d1=(Math.log(F/K)+.5*s*s*T)/(s*Math.sqrt(T)),d2=d1-s*Math.sqrt(T),df=Math.exp(-r*T);return type==='C'?df*(F*N(d1)-K*N(d2)):df*(K*N(-d2)-F*N(-d1));}
+function delta(F,K,T,r,s,type){if(T<=0||s<=0)return 0;let d1=(Math.log(F/K)+.5*s*s*T)/(s*Math.sqrt(T)),df=Math.exp(-r*T);return type==='C'?df*N(d1):-df*N(-d1);}
+function impvol(target,F,K,T,r,type){let lo=.0001,hi=5;if(target<price(F,K,T,r,lo,type)||target>price(F,K,T,r,hi,type))return NaN;for(let i=0;i<90;i++){let m=(lo+hi)/2;if(price(F,K,T,r,m,type)>target)hi=m;else lo=m;}return (lo+hi)/2;}
+function getT(){let e=new Date($('expiry').value);return Math.max(0,(e-Date.now())/(365.25*24*3600*1000));}
+function fitQuad(points){ // y=a+b*x+c*x²
+ let [[x1,y1],[x2,y2],[x3,y3]]=points;
+ let d=(x1-x2)*(x1-x3)*(x2-x3); if(Math.abs(d)<1e-12)return null;
+ let a=(x1*x3*(x1-x3)*y2 + x2*x2*(x3-x1)*y3 + x1*x1*(x2-x3)*y2 + x2*x3*(x2-x3)*y1 + x3*x3*(x1-x2)*y1 + x1*x2*(x2-x1)*y3)/d;
+ // safer solve Gaussian
+ let A=[[1,x1,x1*x1,y1],[1,x2,x2*x2,y2],[1,x3,x3*x3,y3]];
+ for(let i=0;i<3;i++){let m=i;for(let j=i+1;j<3;j++)if(Math.abs(A[j][i])>Math.abs(A[m][i]))m=j;[A[i],A[m]]=[A[m],A[i]];let q=A[i][i];for(let k=i;k<4;k++)A[i][k]/=q;for(let j=0;j<3;j++)if(j!==i){q=A[j][i];for(let k=i;k<4;k++)A[j][k]-=q*A[i][k];}}
+ return [A[0][3],A[1][3],A[2][3]];
+}
+function nextSQ(){let d=new Date(),y=d.getFullYear(),m=d.getMonth();for(let add=0;add<4;add++){let yy=y,mm=m+add;yy+=Math.floor(mm/12);mm%=12;let first=new Date(yy,mm,1),fri=1+((5-first.getDay()+7)%7),second=fri+7;let sq=new Date(yy,mm,second,9,0,0);if(sq>d)return sq;} }
+function localInputValue(d){let z=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`;}
+function find10Delta(F,T,r,atm,side,iv){
+ if(!isFinite(iv)||iv<=0||T<=0)return null;
+ let type=side==='P'?'P':'C',best=null;
+ // ATMから十分広く探索。日経225の500円刻みを前提。
+ for(let i=1;i<=40;i++){
+   let K=atm+(side==='P'?-i:i)*500;
+   if(K<=0)continue;
+   let d=delta(F,K,T,r,iv,type),err=Math.abs(Math.abs(d)-.10);
+   if(!best||err<best.err)best={K,d,err};
+ }
+ return best;
+}
+function effectiveSideIV(side,atmIv,F,T,r){
+ let mode=$(side+'Mode').value,val=+$(side+'Val').value,K=+$(side+'K').value,type=side==='p'?'P':'C';
+ if(mode==='iv' && val>0)return val/100;
+ if(mode==='price' && val>0 && K>0){
+   let x=impvol(val,F,K,T,r,type);
+   if(isFinite(x))return x;
+ }
+ return atmIv;
+}
+function update(){
+ let F=+$('F').value,T=getT(),r=+$('rate').value/100,atm=Math.round(F/500)*500;
+ $('atm').textContent=atm.toLocaleString()+' 円';
+ let sec=Math.max(0,new Date($('expiry').value)-Date.now()),days=Math.floor(sec/86400000),hrs=Math.floor(sec%86400000/3600000),mins=Math.floor(sec%3600000/60000),ss=Math.floor(sec%60000/1000);
+ $('remain').textContent=`${days}日 ${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+ let atmIv=impvol(+$('atmPrice').value,F,atm,T,r,$('atmType').value);
+ $('atmIvOut').textContent=isFinite(atmIv)?(atmIv*100).toFixed(2)+' %':'計算不可';
+ // 初回はATM IV、入力済みなら各サイドの実測IVを使って10Δを再探索
+ let pivSearch=effectiveSideIV('p',atmIv,F,T,r), civSearch=effectiveSideIV('c',atmIv,F,T,r);
+ let recP=find10Delta(F,T,r,atm,'P',pivSearch), recC=find10Delta(F,T,r,atm,'C',civSearch);
+ window._recP=recP; window._recC=recC;
+ $('recP').textContent=recP?`${recP.K.toLocaleString()}P / Δ ${recP.d.toFixed(3)} / IV ${(pivSearch*100).toFixed(2)}%`:'-';
+ $('recC').textContent=recC?`${recC.K.toLocaleString()}C / Δ +${recC.d.toFixed(3)} / IV ${(civSearch*100).toFixed(2)}%`:'-';
+ function anchor(side){let K=+$(side+'K').value,mode=$(side+'Mode').value,val=+$(side+'Val').value,type=side==='p'?'P':'C';let iv=mode==='iv'?val/100:impvol(val,F,K,T,r,type);let d=isFinite(iv)?delta(F,K,T,r,iv,type):NaN;$(side+'Out').textContent=isFinite(iv)?`${(iv*100).toFixed(2)} % / Δ ${d.toFixed(3)}`:'計算不可';return {K,iv,d};}
+ let p=anchor('p'),c=anchor('c'),warn=[];
+ if(isFinite(p.d)&&Math.abs(Math.abs(p.d)-.1)>.035)warn.push(`P側Deltaが10Δから離れています（${p.d.toFixed(3)}）。`);
+ if(isFinite(c.d)&&Math.abs(c.d-.1)>.035)warn.push(`C側Deltaが10Δから離れています（${c.d.toFixed(3)}）。`);
+ let coeff=null;if(isFinite(atmIv)&&isFinite(p.iv)&&isFinite(c.iv)) coeff=fitQuad([[Math.log(p.K/F),p.iv],[Math.log(atm/F),atmIv],[Math.log(c.K/F),c.iv]]);
+ $('warning').textContent=warn.join(' ');
+ updateWatch(F,T,r,coeff,atmIv,p,c);
+ renderMatrix(F,T,r,atm,coeff); drawChart(F,atm,p,c,atmIv,coeff);
+}
+function smileIV(K,F,co){if(!co)return NaN;let x=Math.log(K/F);return co[0]+co[1]*x+co[2]*x*x;}
+
+function watchMetrics(F,T,r,co){
+ let K=+$('watchK').value,mp=+$('watchPrice').value,siv=smileIV(K,F,co);
+ let theo=isFinite(siv)?price(F,K,T,r,siv,'P'):NaN;
+ let miv=mp>0?impvol(mp,F,K,T,r,'P'):NaN;
+ return {K,marketPrice:mp,theo,marketIV:miv,smileIV:siv,gap:(isFinite(miv)&&isFinite(siv))?miv-siv:NaN};
+}
+function updateWatch(F,T,r,co,atmIv,p,c){
+ let w=watchMetrics(F,T,r,co);
+ $('watchTheo').textContent=isFinite(w.theo)?Math.round(w.theo).toLocaleString()+' 円':'-';
+ $('watchIV').textContent=isFinite(w.marketIV)?(w.marketIV*100).toFixed(2)+' %':'-';
+ $('watchSmileIV').textContent=isFinite(w.smileIV)?(w.smileIV*100).toFixed(2)+' %':'-';
+ $('watchGap').textContent=isFinite(w.gap)?((w.gap>=0?'+':'')+(w.gap*100).toFixed(2)+' pt'):'-';
+ renderHistory();
+}
+function getHistory(){try{return JSON.parse(localStorage.getItem('nikkeiOptionSmileHistory')||'[]')}catch(e){return []}}
+function setHistory(h){localStorage.setItem('nikkeiOptionSmileHistory',JSON.stringify(h));}
+function snapshot(){
+ let F=+$('F').value,T=getT(),r=+$('rate').value/100,atm=Math.round(F/500)*500;
+ let atmIv=impvol(+$('atmPrice').value,F,atm,T,r,$('atmType').value);
+ function A(side){let K=+$(side+'K').value,mode=$(side+'Mode').value,val=+$(side+'Val').value,type=side==='p'?'P':'C';let iv=mode==='iv'?val/100:impvol(val,F,K,T,r,type);return {K,iv};}
+ let p=A('p'),c=A('c'),co=(isFinite(atmIv)&&isFinite(p.iv)&&isFinite(c.iv))?fitQuad([[Math.log(p.K/F),p.iv],[Math.log(atm/F),atmIv],[Math.log(c.K/F),c.iv]]):null;
+ let w=watchMetrics(F,T,r,co);
+ if(!isFinite(w.gap)){alert('監視Putの実勢価格など、計算に必要な値を入力してください。');return;}
+ let h=getHistory(),prev=h.length?h[h.length-1]:null;
+ let rec={time:new Date().toISOString(),futures:F,atm,atmIV:atmIv,p10K:p.K,p10IV:p.iv,c10K:c.K,c10IV:c.iv,watchK:w.K,watchPrice:w.marketPrice,theoPrice:w.theo,marketIV:w.marketIV,smileIV:w.smileIV,ivGap:w.gap};
+ if(prev){rec.dF=rec.futures-prev.futures;rec.dGap=rec.ivGap-prev.ivGap;}
+ h.push(rec);setHistory(h);renderHistory();
+}
+function renderHistory(){
+ let h=getHistory(),rows=h.slice().reverse();
+ let html='<thead><tr><th>時刻</th><th>先物</th><th>ATM IV</th><th>監視P</th><th>実勢</th><th>理論</th><th>実勢IV</th><th>Smile IV</th><th>IV乖離</th><th>Δ先物</th><th>Δ乖離</th></tr></thead><tbody>';
+ rows.forEach(x=>{let t=new Date(x.time).toLocaleTimeString('ja-JP');html+=`<tr><td>${t}</td><td>${x.futures.toLocaleString()}</td><td>${(x.atmIV*100).toFixed(2)}%</td><td>${x.watchK.toLocaleString()}P</td><td>${x.watchPrice}</td><td>${Math.round(x.theoPrice)}</td><td>${(x.marketIV*100).toFixed(2)}%</td><td>${(x.smileIV*100).toFixed(2)}%</td><td>${x.ivGap>=0?'+':''}${(x.ivGap*100).toFixed(2)}pt</td><td>${x.dF==null?'-':(x.dF>0?'+':'')+x.dF}</td><td>${x.dGap==null?'-':(x.dGap>0?'+':'')+(x.dGap*100).toFixed(2)+'pt'}</td></tr>`}); $('histTable').innerHTML=html+'</tbody>';
+ let st=$('alertState');
+ if(h.length<2)st.textContent=h.length?'基準スナップショットを記録済み':'履歴を記録すると変化を判定します';
+ else {let a=h[h.length-2],b=h[h.length-1],df=b.futures-a.futures,dg=(b.ivGap-a.ivGap)*100;
+   if(df<0&&dg>0.25)st.textContent=`🚨 下げのP盛り：先物 ${df}円 / Put IV乖離 +${dg.toFixed(2)}pt`;
+   else if(df<0&&dg>0)st.textContent=`⚠ 下落＋P盛り気味：先物 ${df}円 / Put IV乖離 +${dg.toFixed(2)}pt`;
+   else if(df<0&&dg<=0)st.textContent=`下落だがP盛り拡大なし：先物 ${df}円 / Put IV乖離 ${dg.toFixed(2)}pt`;
+   else st.textContent=`直近変化：先物 ${df>=0?'+':''}${df}円 / Put IV乖離 ${dg>=0?'+':''}${dg.toFixed(2)}pt`;
+ }
+ drawHistory(h);
+}
+function drawHistory(h){
+ let cv=$('histChart'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);if(h.length<2)return;
+ let L=65,R=65,T=18,B=35,fs=h.map(x=>x.futures),gs=h.map(x=>x.ivGap*100),fmin=Math.min(...fs),fmax=Math.max(...fs),gmin=Math.min(...gs),gmax=Math.max(...gs);if(fmax===fmin){fmax++;fmin--}if(gmax===gmin){gmax++;gmin--}
+ let X=i=>L+i/(h.length-1)*(W-L-R),YF=v=>T+(fmax-v)/(fmax-fmin)*(H-T-B),YG=v=>T+(gmax-v)/(gmax-gmin)*(H-T-B);
+ ctx.font='12px sans-serif';ctx.fillStyle='#9db0cf';ctx.fillText(`先物 ${Math.round(fmin)}–${Math.round(fmax)}`,5,14);ctx.fillText(`IV乖離 ${gmin.toFixed(2)}–${gmax.toFixed(2)}pt`,W-190,14);
+ ctx.strokeStyle='#7dd3fc';ctx.lineWidth=2;ctx.beginPath();h.forEach((x,i)=>i?ctx.lineTo(X(i),YF(x.futures)):ctx.moveTo(X(i),YF(x.futures)));ctx.stroke();
+ ctx.strokeStyle='#fbbf24';ctx.lineWidth=2;ctx.beginPath();h.forEach((x,i)=>i?ctx.lineTo(X(i),YG(x.ivGap*100)):ctx.moveTo(X(i),YG(x.ivGap*100)));ctx.stroke();
+}
+function downloadText(name,text,type){let b=new Blob([text],{type}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+function exportCSV(){let h=getHistory();if(!h.length)return;let keys=['time','futures','atm','atmIV','p10K','p10IV','c10K','c10IV','watchK','watchPrice','theoPrice','marketIV','smileIV','ivGap','dF','dGap'];let csv=keys.join(',')+'\n'+h.map(x=>keys.map(k=>x[k]??'').join(',')).join('\n');downloadText('nikkei_option_history.csv','\ufeff'+csv,'text/csv;charset=utf-8')}
+function renderMatrix(F,T,r,atm,co){
+ let n=Math.max(2,+$('nStrike').value),min=+$('ivMin').value,max=+$('ivMax').value,step=Math.max(.25,+$('ivStep').value),ivs=[];for(let v=min;v<=max+1e-9;v+=step)ivs.push(v);
+ let h='<thead><tr><th>Strike / side</th>'+ivs.map(v=>`<th>${v.toFixed(step<1?1:0)}%</th>`).join('')+'</tr></thead><tbody>';
+ for(let K=atm+n*500;K>=atm-n*500;K-=500){let mode=$('tableType').value,type=mode==='auto'?(K>=atm?'C':'P'):mode,siv=smileIV(K,F,co)*100,near=ivs.reduce((a,v)=>Math.abs(v-siv)<Math.abs(a-siv)?v:a,ivs[0]);
+ h+=`<tr class="${K===atm?'atmrow':''}"><td>${K.toLocaleString()} ${type}</td>`;
+ for(let v of ivs){let cls=[];if(K===atm)cls.push('atmcell');if(isFinite(siv)&&Math.abs(v-near)<1e-8)cls.push('smile');h+=`<td class="${cls.join(' ')}" title="推定スマイルIV ${isFinite(siv)?siv.toFixed(2):'-'}%">${Math.round(price(F,K,T,r,v/100,type)).toLocaleString()}</td>`;}h+='</tr>';
+ } $('matrix').innerHTML=h+'</tbody>';
+}
+function drawChart(F,atm,p,c,atmIv,co){
+ let cv=$('chart'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height;ctx.clearRect(0,0,W,H);ctx.strokeStyle='#2b3a59';ctx.fillStyle='#9db0cf';ctx.font='12px sans-serif';
+ let ks=[];for(let k=atm-5000;k<=atm+5000;k+=100)ks.push(k);let vals=ks.map(k=>smileIV(k,F,co)*100).filter(Number.isFinite);if(!vals.length)return;
+ let ymin=Math.max(0,Math.min(...vals,p.iv*100,atmIv*100,c.iv*100)-3),ymax=Math.max(...vals,p.iv*100,atmIv*100,c.iv*100)+3,L=55,R=20,Tp=18,B=35;
+ let X=k=>L+(k-(atm-5000))/10000*(W-L-R),Y=v=>Tp+(ymax-v)/(ymax-ymin)*(H-Tp-B);
+ for(let i=0;i<=5;i++){let y=ymin+(ymax-ymin)*i/5,py=Y(y);ctx.beginPath();ctx.moveTo(L,py);ctx.lineTo(W-R,py);ctx.stroke();ctx.fillText(y.toFixed(1)+'%',5,py+4);}
+ ctx.strokeStyle='#fbbf24';ctx.lineWidth=3;ctx.beginPath();ks.forEach((k,i)=>{let y=smileIV(k,F,co)*100;if(i===0)ctx.moveTo(X(k),Y(y));else ctx.lineTo(X(k),Y(y));});ctx.stroke();
+ [[p.K,p.iv*100,'P10'],[atm,atmIv*100,'ATM'],[c.K,c.iv*100,'C10']].forEach(([k,v,t])=>{if(!isFinite(v))return;ctx.fillStyle='#edf3ff';ctx.beginPath();ctx.arc(X(k),Y(v),5,0,Math.PI*2);ctx.fill();ctx.fillText(t,X(k)+7,Y(v)-7);});
+}
+$('expiry').value=localInputValue(nextSQ());
+document.querySelectorAll('input,select').forEach(e=>e.addEventListener('input',update));
+$('setP').addEventListener('click',()=>{if(window._recP){$('pK').value=window._recP.K;update();}});
+$('setC').addEventListener('click',()=>{if(window._recC){$('cK').value=window._recC.K;update();}});
+$('saveSnap').addEventListener('click',snapshot);
+$('exportCsv').addEventListener('click',exportCSV);
+$('exportJson').addEventListener('click',()=>downloadText('nikkei_option_history.json',JSON.stringify(getHistory(),null,2),'application/json'));
+$('clearHist').addEventListener('click',()=>{if(confirm('保存した監視履歴を消去しますか？')){localStorage.removeItem('nikkeiOptionSmileHistory');renderHistory();}});
+setInterval(update,1000);update();
+</script></body></html>

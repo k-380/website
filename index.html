@@ -68,6 +68,49 @@
       border-radius: 16px;
       color: var(--sub);
     }
+    .category {
+      grid-column: 1 / -1;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--card);
+      overflow: hidden;
+    }
+    .category summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 18px 22px;
+      cursor: pointer;
+      font-weight: 700;
+      list-style: none;
+      user-select: none;
+    }
+    .category summary::-webkit-details-marker { display: none; }
+    .category summary::before {
+      content: "+";
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: var(--accent);
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+    .category[open] summary::before { content: "−"; }
+    .category summary span {
+      margin-left: auto;
+      color: var(--sub);
+      font-size: .85rem;
+      font-weight: 500;
+    }
+    .category .category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+      padding: 0 16px 16px;
+    }
     footer {
       border-top: 1px solid var(--line);
       padding: 24px 0 40px;
@@ -118,14 +161,28 @@
         <p>ATM・10ΔのIVからスマイルカーブを推定し、実勢価格との乖離やP盛りを継続監視するツール。</p>
       </a>
 
+            <a class="card" href="./tools/kasa-iru.html">
+        <h2>傘いる？</h2>
+        <p>外出時に傘が必要か判断するためのシンプルなWebツール。</p>
+      </a>
+
+      <a class="card" href="./mjcalc.html">
+        <h2>三麻スコア集計機</h2>
+        <p>毎局の参加者と点数を記録し、最後にまとめて精算できるツール。</p>
+      </a>
+
+      <a class="card" href="./acht_acht_gunner.html">
+        <h2>アハトアハト射手</h2>
+        <p>射角と時限信管を設定し、未来の炸裂地点を読んで敵機を撃墜する対空射撃ゲーム。</p>
+      </a>
+
+      <details class="category">
+        <summary>ゲーム <span>6作品</span></summary>
+        <div class="category-grid">
+
       <a class="card" href="./saturation_game.html">
         <h2>SATURATION</h2>
         <p>似た色を彩度順・色相順に見分けてタップする色覚トレーニングゲーム。</p>
-      </a>
-
-      <a class="card" href="./tools/kasa-iru.html">
-        <h2>傘いる？</h2>
-        <p>外出時に傘が必要か判断するためのシンプルなWebツール。</p>
       </a>
 
       <a class="card" href="./battleship_strait-5.html">
@@ -136,11 +193,6 @@
       <a class="card" href="./gunship.html">
         <h2>GUNSHIP: RECAPTURE</h2>
         <p>ガンシップから地上を制圧し、拠点を奪還する戦術ゲーム。</p>
-      </a>
-
-      <a class="card" href="./mjcalc.html">
-        <h2>三麻スコア集計機</h2>
-        <p>毎局の参加者と点数を記録し、最後にまとめて精算できるツール。</p>
       </a>
 
       <a class="card" href="./naval_sim.html">
@@ -157,6 +209,8 @@
         <h2>アハトアハト射手</h2>
         <p>射角と時限信管を設定し、未来の炸裂地点を読んで敵機を撃墜する対空射撃ゲーム。</p>
       </a>
+        </div>
+      </details>
     </section>
   </main>
 

@@ -13,7 +13,7 @@
 input,textarea,select,button{font:inherit} input,textarea,select{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px}textarea{min-height:170px;resize:vertical}label{display:block;margin:10px 0 5px;color:#c9d1d9;font-size:14px}
 .row{display:flex;gap:10px;flex-wrap:wrap}.row>*{flex:1;min-width:130px}button{border:0;border-radius:9px;padding:10px 14px;background:#238636;color:white;font-weight:700;cursor:pointer}button.secondary{background:#21262d;border:1px solid var(--line)}button.danger{background:#da3633}button:hover{filter:brightness(1.08)}
 pre{white-space:pre-wrap;word-break:break-word;background:var(--panel2);border:1px solid var(--line);padding:13px;border-radius:9px;max-height:380px;overflow:auto}.q{border:1px solid var(--line);border-radius:12px;padding:15px;margin:12px 0;background:var(--panel2)}.qhead{display:flex;justify-content:space-between;gap:10px}.answer{display:none;margin-top:10px;padding:10px;border-left:3px solid var(--ok);background:#122318}.answer.show{display:block}.choices{margin:8px 0;color:#c9d1d9}.pill{font-size:12px;border:1px solid var(--line);padding:2px 7px;border-radius:999px;color:var(--muted)}
-.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.empty{text-align:center;color:var(--muted);padding:28px}.small{font-size:12px;color:var(--muted)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.related{margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}.related h3{margin:0 0 8px;font-size:16px}.related-list{display:flex;gap:8px;flex-wrap:wrap}.related-link{display:inline-block;padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--accent);background:var(--panel2);text-decoration:none;cursor:pointer}.related-link:hover{border-color:var(--accent);filter:brightness(1.08)}.empty{text-align:center;color:var(--muted);padding:28px}.small{font-size:12px;color:var(--muted)}
 </style>
 </head>
 <body><main class="wrap">
@@ -53,8 +53,41 @@ function normalize(raw){
 $('#importQuiz').onclick=()=>{try{const q=normalize($('#aiJson').value);const a=load();a.unshift(q);save(a);renderSelect(q.id);$('#msg').textContent=`「${q.title}」を${q.questions.length}問保存しました。`;}catch(e){$('#msg').textContent='読み込み失敗: '+e.message}};
 function renderSelect(sel){const a=load(), s=$('#quizSelect');s.innerHTML=''; if(!a.length){s.innerHTML='<option>保存データなし</option>';renderQuiz(null);return} a.forEach(q=>{const o=document.createElement('option');o.value=q.id;o.textContent=`${q.title}（${q.questions.length}問）`;s.appendChild(o)}); if(sel)s.value=sel;renderQuiz(a.find(q=>q.id===s.value)||a[0])}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+async function fetchRelated(sourceUrl){
+ try{
+  if(!sourceUrl)return [];
+  const u=new URL(sourceUrl), m=u.pathname.match(/^\/wiki\/(.+)$/); if(!m||!u.hostname.endsWith('wikipedia.org'))return [];
+  const title=decodeURIComponent(m[1]).replace(/_/g,' ');
+  const api=u.origin+'/w/api.php?action=parse&format=json&origin=*&prop=text&page='+encodeURIComponent(title);
+  const r=await fetch(api); if(!r.ok)throw Error('Wikipedia API');
+  const data=await r.json(), html=data?.parse?.text?.['*']; if(!html)return [];
+  const doc=new DOMParser().parseFromString(html,'text/html');
+  const headings=[...doc.querySelectorAll('h2')];
+  const h=headings.find(x=>x.textContent.replace(/\[.*?\]/g,'').trim()==='関連項目'); if(!h)return [];
+  const links=[]; let el=h.nextElementSibling;
+  while(el&&el.tagName!=='H2'){
+   el.querySelectorAll('a[href^="/wiki/"]').forEach(a=>{
+    const href=a.getAttribute('href'), label=a.textContent.trim();
+    if(!label||!href||href.includes(':')||links.some(x=>x.href===href))return;
+    links.push({label,href});
+   });
+   el=el.nextElementSibling;
+  }
+  return links.slice(0,30).map(x=>({label:x.label,url:u.origin+x.href}));
+ }catch(e){return []}
+}
+async function renderRelated(q,v){
+ if(!q?.sourceUrl)return;
+ const box=document.createElement('div');box.className='related';box.innerHTML='<h3>関連項目</h3><div class="small">Wikipediaから取得中...</div>';v.appendChild(box);
+ const links=await fetchRelated(q.sourceUrl);
+ if(!links.length){box.innerHTML='<h3>関連項目</h3><div class="small">関連項目リンクは見つかりませんでした。</div>';return}
+ box.innerHTML='<h3>関連項目</h3><p class="small">クリックすると、その記事を次のクイズ対象にします。</p><div class="related-list"></div>';
+ const list=box.querySelector('.related-list');
+ links.forEach(x=>{const a=document.createElement('a');a.className='related-link';a.href=x.url;a.textContent=x.label;a.onclick=e=>{e.preventDefault();$('#wikiUrl').value=x.url;$('#promptOut').textContent=promptText();window.scrollTo({top:0,behavior:'smooth'});};list.appendChild(a)});
+}
 function renderQuiz(q){const v=$('#quizView');if(!q){v.className='empty';v.textContent='まだクイズがありません。';return}v.className='';v.innerHTML=`<h2>${esc(q.title)}</h2><p class="small">${q.sourceUrl?esc(q.sourceUrl)+' ・ ':''}${new Date(q.savedAt).toLocaleString()}</p>`+q.questions.map((x,i)=>`<article class="q"><div class="qhead"><strong>Q${i+1}. ${esc(x.question)}</strong><span class="pill">4択</span></div><div class="choices">${x.choices.map((c,j)=>`${String.fromCharCode(65+j)}. ${esc(c)}`).join('<br>')}</div><button class="secondary reveal" data-i="${i}">答えを見る</button><div class="answer" id="ans${i}"><strong>答え: ${String.fromCharCode(65+x.answer)}. ${esc(x.choices[x.answer])}</strong>${x.explanation?`<div>${esc(x.explanation)}</div>`:''}</div></article>`).join('');
  v.querySelectorAll('.reveal').forEach(b=>b.onclick=()=>{const a=$('#ans'+b.dataset.i);a.classList.toggle('show');b.textContent=a.classList.contains('show')?'答えを隠す':'答えを見る'});
+ renderRelated(q,v);
 }
 $('#quizSelect').onchange=()=>renderQuiz(load().find(q=>q.id===$('#quizSelect').value));
 $('#deleteBtn').onclick=()=>{const id=$('#quizSelect').value;if(!id)return;save(load().filter(q=>q.id!==id));renderSelect()};

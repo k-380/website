@@ -58,23 +58,28 @@ async function fetchRelated(sourceUrl){
   if(!sourceUrl)return [];
   const u=new URL(sourceUrl), m=u.pathname.match(/^\/wiki\/(.+)$/); if(!m||!u.hostname.endsWith('wikipedia.org'))return [];
   const title=decodeURIComponent(m[1]).replace(/_/g,' ');
-  const api=u.origin+'/w/api.php?action=parse&format=json&origin=*&prop=text&page='+encodeURIComponent(title);
+  const api=u.origin+'/w/api.php?action=parse&format=json&formatversion=2&origin=*&prop=sections%7Clinks&page='+encodeURIComponent(title);
   const r=await fetch(api); if(!r.ok)throw Error('Wikipedia API');
-  const data=await r.json(), html=data?.parse?.text?.['*']; if(!html)return [];
-  const doc=new DOMParser().parseFromString(html,'text/html');
-  const headings=[...doc.querySelectorAll('h2')];
-  const h=headings.find(x=>x.textContent.replace(/\[.*?\]/g,'').trim()==='関連項目'); if(!h)return [];
-  const links=[]; let el=h.nextElementSibling;
-  while(el&&el.tagName!=='H2'){
-   el.querySelectorAll('a[href^="/wiki/"]').forEach(a=>{
-    const href=a.getAttribute('href'), label=a.textContent.trim();
-    if(!label||!href||href.includes(':')||links.some(x=>x.href===href))return;
-    links.push({label,href});
-   });
-   el=el.nextElementSibling;
-  }
-  return links.slice(0,30).map(x=>({label:x.label,url:u.origin+x.href}));
- }catch(e){return []}
+  const data=await r.json(), parse=data?.parse; if(!parse)return [];
+
+  // APIのsectionsから「関連項目」の節番号を特定する。
+  // HTMLの見出し構造に依存しないのでParsoid等の変更に強い。
+  const section=(parse.sections||[]).find(s=>{
+   const name=String(s.line||'').replace(/<[^>]+>/g,'').replace(/\s/g,'').trim();
+   return name==='関連項目'||name==='関連項目・関連事項'||name==='関連項目・関連ページ';
+  });
+  if(!section)return [];
+
+  // 該当節だけを再取得し、その節に含まれる内部リンクを抽出。
+  const sr=await fetch(u.origin+'/w/api.php?action=parse&format=json&formatversion=2&origin=*&prop=links&section='+encodeURIComponent(section.index)+'&page='+encodeURIComponent(title));
+  if(!sr.ok)throw Error('Wikipedia section API');
+  const sd=await sr.json(), links=sd?.parse?.links||[];
+  return links
+   .filter(x=>x&&x.ns===0&&x.title&&x.title!==title)
+   .filter((x,i,a)=>a.findIndex(y=>y.title===x.title)===i)
+   .slice(0,30)
+   .map(x=>({label:x.title,url:u.origin+'/wiki/'+encodeURIComponent(x.title.replace(/ /g,'_'))}));
+ }catch(e){console.warn('関連項目の取得に失敗しました',e);return []}
 }
 async function renderRelated(q,v){
  if(!q?.sourceUrl)return;

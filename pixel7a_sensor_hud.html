@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#05080d">
+<title>Pixel Sensor HUD</title>
+<style>
+:root{
+  --bg:#05080d;--panel:#0b1119;--panel2:#0e1722;--line:#183043;
+  --text:#d8f5ff;--muted:#7290a0;--accent:#66e6ff;--good:#66ffb3;
+  --warn:#ffd166;--bad:#ff6b7a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{
+  min-height:100vh;
+  background:
+    linear-gradient(rgba(102,230,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(102,230,255,.025) 1px,transparent 1px),
+    radial-gradient(circle at 50% -10%,#0d2633 0,transparent 35%);
+  background-size:24px 24px,24px 24px,100% 100%;
+}
+header{
+  position:sticky;top:0;z-index:5;padding:12px 14px;
+  background:rgba(5,8,13,.9);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--line)
+}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+h1{font-size:17px;letter-spacing:.12em;margin:0;color:var(--accent)}
+.status{font-size:11px;color:var(--muted)}
+.actions{display:flex;gap:8px;margin-top:10px}
+button{
+  appearance:none;border:1px solid #24657b;background:#0c2631;color:var(--accent);
+  padding:10px 12px;border-radius:10px;font:inherit;font-weight:700
+}
+button.secondary{border-color:#293b48;background:#0b1119;color:#9fb8c6}
+main{padding:12px;max-width:1100px;margin:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:10px}
+.card{
+  background:linear-gradient(180deg,rgba(14,23,34,.97),rgba(8,14,21,.97));
+  border:1px solid var(--line);border-radius:14px;padding:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.25)
+}
+.card h2{font-size:12px;margin:0 0 10px;color:#93dff1;letter-spacing:.08em}
+.rows{display:grid;grid-template-columns:1fr auto;gap:7px 10px;font-size:12px}
+.label{color:var(--muted)}
+.value{color:var(--text);text-align:right;word-break:break-all}
+.big{font-size:25px;color:var(--good);font-weight:700;letter-spacing:.03em}
+.badge{font-size:10px;padding:2px 6px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+.ok{color:var(--good);border-color:#1f6b50}
+.warn{color:var(--warn);border-color:#6b5722}
+.bad{color:var(--bad);border-color:#6b2731}
+canvas{width:100%;height:90px;border-radius:8px;background:#071018;border:1px solid #132836;margin-top:8px}
+footer{color:#526b78;font-size:10px;padding:18px 4px 40px;line-height:1.6}
+.pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:#526b78;margin-right:7px}
+.pulse.live{background:var(--good);box-shadow:0 0 10px var(--good)}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div>
+      <h1>PIXEL SENSOR HUD</h1>
+      <div class="status"><span id="pulse" class="pulse"></span><span id="status">IDLE</span></div>
+    </div>
+    <div class="badge" id="secure">checking...</div>
+  </div>
+  <div class="actions">
+    <button id="start">START SENSORS</button>
+    <button id="gps" class="secondary">GPS ON</button>
+    <button id="zero" class="secondary">ZERO</button>
+  </div>
+</header>
+
+<main>
+<div class="grid">
+
+<section class="card">
+<h2>ACCELEROMETER / m/s²</h2>
+<div class="rows">
+<div class="label">X</div><div class="value" id="ax">—</div>
+<div class="label">Y</div><div class="value" id="ay">—</div>
+<div class="label">Z</div><div class="value" id="az">—</div>
+<div class="label">|a|</div><div class="value big" id="amag">—</div>
+<div class="label">source</div><div class="value" id="asrc">waiting</div>
+</div>
+<canvas id="accPlot" width="600" height="180"></canvas>
+</section>
+
+<section class="card">
+<h2>LINEAR ACCELERATION / m/s²</h2>
+<div class="rows">
+<div class="label">X</div><div class="value" id="lax">—</div>
+<div class="label">Y</div><div class="value" id="lay">—</div>
+<div class="label">Z</div><div class="value" id="laz">—</div>
+<div class="label">|a|</div><div class="value big" id="lamag">—</div>
+</div>
+</section>
+
+<section class="card">
+<h2>GYROSCOPE / rad/s</h2>
+<div class="rows">
+<div class="label">X</div><div class="value" id="gx">—</div>
+<div class="label">Y</div><div class="value" id="gy">—</div>
+<div class="label">Z</div><div class="value" id="gz">—</div>
+<div class="label">|ω|</div><div class="value big" id="gmag">—</div>
+<div class="label">source</div><div class="value" id="gsrc">waiting</div>
+</div>
+</section>
+
+<section class="card">
+<h2>ORIENTATION / deg</h2>
+<div class="rows">
+<div class="label">alpha / yaw</div><div class="value" id="oa">—</div>
+<div class="label">beta / pitch</div><div class="value" id="ob">—</div>
+<div class="label">gamma / roll</div><div class="value" id="og">—</div>
+<div class="label">screen</div><div class="value" id="screenOri">—</div>
+<div class="label">quaternion</div><div class="value" id="quat">—</div>
+</div>
+</section>
+
+<section class="card">
+<h2>GRAVITY / m/s²</h2>
+<div class="rows">
+<div class="label">X</div><div class="value" id="grx">—</div>
+<div class="label">Y</div><div class="value" id="gry">—</div>
+<div class="label">Z</div><div class="value" id="grz">—</div>
+<div class="label">|g|</div><div class="value big" id="grmag">—</div>
+</div>
+</section>
+
+<section class="card">
+<h2>MAGNETOMETER / µT</h2>
+<div class="rows">
+<div class="label">X</div><div class="value" id="mx">—</div>
+<div class="label">Y</div><div class="value" id="my">—</div>
+<div class="label">Z</div><div class="value" id="mz">—</div>
+<div class="label">|B|</div><div class="value big" id="mmag">—</div>
+<div class="label">status</div><div class="value" id="mstatus">not started</div>
+</div>
+</section>
+
+<section class="card">
+<h2>AMBIENT LIGHT</h2>
+<div class="rows">
+<div class="label">illuminance</div><div class="value big" id="lux">— lux</div>
+<div class="label">status</div><div class="value" id="lstatus">not started</div>
+</div>
+</section>
+
+<section class="card">
+<h2>GPS / GNSS</h2>
+<div class="rows">
+<div class="label">latitude</div><div class="value" id="lat">—</div>
+<div class="label">longitude</div><div class="value" id="lon">—</div>
+<div class="label">altitude</div><div class="value" id="alt">—</div>
+<div class="label">accuracy</div><div class="value" id="acc">—</div>
+<div class="label">speed</div><div class="value" id="spd">—</div>
+<div class="label">heading</div><div class="value" id="head">—</div>
+</div>
+</section>
+
+<section class="card">
+<h2>BATTERY</h2>
+<div class="rows">
+<div class="label">level</div><div class="value big" id="bat">—</div>
+<div class="label">charging</div><div class="value" id="charging">—</div>
+<div class="label">charge time</div><div class="value" id="ctime">—</div>
+<div class="label">discharge time</div><div class="value" id="dtime">—</div>
+</div>
+</section>
+
+<section class="card">
+<h2>NETWORK / DEVICE</h2>
+<div class="rows">
+<div class="label">online</div><div class="value" id="online">—</div>
+<div class="label">connection</div><div class="value" id="ctype">—</div>
+<div class="label">downlink</div><div class="value" id="down">—</div>
+<div class="label">RTT</div><div class="value" id="rtt">—</div>
+<div class="label">memory hint</div><div class="value" id="mem">—</div>
+<div class="label">CPU threads</div><div class="value" id="cpu">—</div>
+<div class="label">screen</div><div class="value" id="screen">—</div>
+<div class="label">DPR</div><div class="value" id="dpr">—</div>
+</div>
+</section>
+
+<section class="card">
+<h2>WEB SENSOR API SUPPORT</h2>
+<div class="rows" id="support"></div>
+</section>
+
+</div>
+
+<footer>
+Web版HUD。ブラウザが公開しているセンサーだけ取得できます。気圧計・近接・端末温度・指紋などは、
+Pixel 7a本体にハードウェアが存在しても通常のWeb APIから直接取得できない場合があります。
+Generic Sensor APIはHTTPSなどのSecure Contextでの利用が前提です。
+</footer>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmt=(v,n=3)=> Number.isFinite(v)?v.toFixed(n):'—';
+const mag=(x,y,z)=>Math.hypot(x||0,y||0,z||0);
+let sensors=[], gpsWatch=null, zero={a:[0,0,0],g:[0,0,0]};
+let lastAccel=[0,0,0], lastGyro=[0,0,0];
+let plotData=[];
+
+function set3(prefix,x,y,z,d=3){
+  $(prefix+'x').textContent=fmt(x,d);
+  $(prefix+'y').textContent=fmt(y,d);
+  $(prefix+'z').textContent=fmt(z,d);
+}
+function setLive(t){
+  $('status').textContent=t;
+  $('pulse').classList.add('live');
+}
+function errText(e){return (e&&e.name?e.name+': ':'')+(e&&e.message?e.message:String(e))}
+
+function drawPlot(){
+  const c=$('accPlot'),ctx=c.getContext('2d'),w=c.width,h=c.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='#183043';ctx.lineWidth=1;
+  for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(0,h*i/4);ctx.lineTo(w,h*i/4);ctx.stroke()}
+  if(plotData.length<2)return;
+  const vals=plotData.map(p=>p[3]), max=Math.max(12, ...vals);
+  ctx.strokeStyle='#66e6ff';ctx.lineWidth=2;ctx.beginPath();
+  plotData.forEach((p,i)=>{
+    const x=i/(plotData.length-1)*w;
+    const y=h-(p[3]/max*h*.9);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+}
+
+function legacyMotion(e){
+  const a=e.accelerationIncludingGravity;
+  if(a && a.x!=null){
+    lastAccel=[a.x-zero.a[0],a.y-zero.a[1],a.z-zero.a[2]];
+    set3('a',...lastAccel);$('amag').textContent=fmt(mag(...lastAccel));
+    $('asrc').textContent='DeviceMotion';
+    plotData.push([...lastAccel,mag(...lastAccel)]);if(plotData.length>120)plotData.shift();drawPlot();
+  }
+  const l=e.acceleration;
+  if(l && l.x!=null){set3('la',l.x,l.y,l.z);$('lamag').textContent=fmt(mag(l.x,l.y,l.z))}
+  const r=e.rotationRate;
+  if(r && r.alpha!=null){
+    const k=Math.PI/180;
+    lastGyro=[r.beta*k-zero.g[0],r.gamma*k-zero.g[1],r.alpha*k-zero.g[2]];
+    set3('g',...lastGyro);$('gmag').textContent=fmt(mag(...lastGyro));$('gsrc').textContent='DeviceMotion';
+  }
+}
+function legacyOrientation(e){
+  $('oa').textContent=fmt(e.alpha,2);$('ob').textContent=fmt(e.beta,2);$('og').textContent=fmt(e.gamma,2);
+}
+
+async function trySensor(name, opts, onread, statusId){
+  if(!(name in window)){ if(statusId)$(statusId).textContent='API unsupported'; return null; }
+  try{
+    const s=new window[name](opts||{frequency:30});
+    s.addEventListener('reading',()=>onread(s));
+    s.addEventListener('error',ev=>{if(statusId)$(statusId).textContent=errText(ev.error)});
+    s.start(); sensors.push(s); if(statusId)$(statusId).textContent='LIVE'; return s;
+  }catch(e){if(statusId)$(statusId).textContent=errText(e);return null}
+}
+
+async function startSensors(){
+  sensors.forEach(s=>{try{s.stop()}catch{}}); sensors=[];
+  window.removeEventListener('devicemotion',legacyMotion);
+  window.removeEventListener('deviceorientation',legacyOrientation);
+  window.addEventListener('devicemotion',legacyMotion);
+  window.addEventListener('deviceorientation',legacyOrientation);
+
+  await trySensor('Accelerometer',{frequency:30},s=>{
+    lastAccel=[s.x-zero.a[0],s.y-zero.a[1],s.z-zero.a[2]];
+    set3('a',...lastAccel);$('amag').textContent=fmt(mag(...lastAccel));$('asrc').textContent='Accelerometer';
+    plotData.push([...lastAccel,mag(...lastAccel)]);if(plotData.length>120)plotData.shift();drawPlot();
+  });
+  await trySensor('LinearAccelerationSensor',{frequency:30},s=>{
+    set3('la',s.x,s.y,s.z);$('lamag').textContent=fmt(mag(s.x,s.y,s.z));
+  });
+  await trySensor('Gyroscope',{frequency:30},s=>{
+    lastGyro=[s.x-zero.g[0],s.y-zero.g[1],s.z-zero.g[2]];
+    set3('g',...lastGyro);$('gmag').textContent=fmt(mag(...lastGyro));$('gsrc').textContent='Gyroscope';
+  });
+  await trySensor('GravitySensor',{frequency:30},s=>{
+    set3('gr',s.x,s.y,s.z);$('grmag').textContent=fmt(mag(s.x,s.y,s.z));
+  });
+  await trySensor('Magnetometer',{frequency:10},s=>{
+    set3('m',s.x,s.y,s.z,2);$('mmag').textContent=fmt(mag(s.x,s.y,s.z),2);
+  },'mstatus');
+  await trySensor('AmbientLightSensor',{frequency:2},s=>{
+    $('lux').textContent=fmt(s.illuminance,1)+' lux';
+  },'lstatus');
+  await trySensor('AbsoluteOrientationSensor',{frequency:20},s=>{
+    if(s.quaternion)$('quat').textContent='['+Array.from(s.quaternion).map(v=>fmt(v,3)).join(', ')+']';
+  });
+
+  setLive('SENSORS ACTIVE');
+}
+
+function toggleGPS(){
+  if(gpsWatch!==null){
+    navigator.geolocation.clearWatch(gpsWatch);gpsWatch=null;$('gps').textContent='GPS ON';return;
+  }
+  if(!navigator.geolocation){$('gps').textContent='GPS N/A';return}
+  gpsWatch=navigator.geolocation.watchPosition(p=>{
+    const c=p.coords;
+    $('lat').textContent=fmt(c.latitude,6);$('lon').textContent=fmt(c.longitude,6);
+    $('alt').textContent=c.altitude==null?'—':fmt(c.altitude,1)+' m';
+    $('acc').textContent=fmt(c.accuracy,1)+' m';
+    $('spd').textContent=c.speed==null?'—':fmt(c.speed,2)+' m/s';
+    $('head').textContent=c.heading==null?'—':fmt(c.heading,1)+'°';
+    $('gps').textContent='GPS OFF';
+  },e=>{$('gps').textContent='GPS ERR';$('acc').textContent=e.message},
+  {enableHighAccuracy:true,maximumAge:500,timeout:15000});
+}
+
+async function battery(){
+  if(!navigator.getBattery)return;
+  const b=await navigator.getBattery();
+  const update=()=>{
+    $('bat').textContent=Math.round(b.level*100)+'%';
+    $('charging').textContent=b.charging?'YES':'NO';
+    $('ctime').textContent=Number.isFinite(b.chargingTime)?Math.round(b.chargingTime)+' s':'—';
+    $('dtime').textContent=Number.isFinite(b.dischargingTime)?Math.round(b.dischargingTime)+' s':'—';
+  };
+  ['levelchange','chargingchange','chargingtimechange','dischargingtimechange'].forEach(x=>b.addEventListener(x,update));update();
+}
+
+function deviceInfo(){
+  $('online').textContent=navigator.onLine?'YES':'NO';
+  const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+  if(c){$('ctype').textContent=c.effectiveType||c.type||'—';$('down').textContent=c.downlink!=null?c.downlink+' Mbps':'—';$('rtt').textContent=c.rtt!=null?c.rtt+' ms':'—'}
+  $('mem').textContent=navigator.deviceMemory? navigator.deviceMemory+' GB class':'—';
+  $('cpu').textContent=navigator.hardwareConcurrency||'—';
+  $('screen').textContent=`${screen.width}×${screen.height}`;
+  $('dpr').textContent=devicePixelRatio;
+  $('screenOri').textContent=screen.orientation?.type||'—';
+}
+function support(){
+  const names=['Accelerometer','LinearAccelerationSensor','GravitySensor','Gyroscope','Magnetometer','AbsoluteOrientationSensor','RelativeOrientationSensor','AmbientLightSensor','DeviceMotionEvent','DeviceOrientationEvent','Geolocation'];
+  $('support').innerHTML='';
+  names.forEach(n=>{
+    const ok=(n==='Geolocation')?('geolocation' in navigator):(n in window);
+    $('support').insertAdjacentHTML('beforeend',`<div class="label">${n}</div><div class="value ${ok?'ok':'bad'}">${ok?'API AVAILABLE':'UNAVAILABLE'}</div>`);
+  });
+}
+
+$('start').addEventListener('click',startSensors);
+$('gps').addEventListener('click',toggleGPS);
+$('zero').addEventListener('click',()=>{
+  zero.a=[...lastAccel];zero.g=[...lastGyro];
+});
+$('secure').textContent=isSecureContext?'HTTPS / SECURE':'NOT SECURE';
+$('secure').className='badge '+(isSecureContext?'ok':'bad');
+
+battery();deviceInfo();support();
+window.addEventListener('online',deviceInfo);window.addEventListener('offline',deviceInfo);
+screen.orientation?.addEventListener('change',deviceInfo);
+</script>
+</body>
+</html>

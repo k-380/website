@@ -225,24 +225,64 @@ function makeDriveCurve(amount){
 }
 function noteFreq(m){return 440*Math.pow(2,(m-69)/12)}
 function currentOct(){const el=document.querySelector('input[name="oct"]:checked');return parseInt(el.value||0)}
+function addActiveVoice(v){
+  if(!active.has(v.midi))active.set(v.midi,new Set());
+  active.get(v.midi).add(v);
+}
+function removeActiveVoice(v){
+  const set=active.get(v.midi);
+  if(!set)return;
+  set.delete(v);
+  if(set.size===0)active.delete(v.midi);
+}
 function startNote(midi,velocity=1,duration=null){
-  ensureAudio();midi+=currentOct()*12;
-  if($("mono").checked){for(const[,v]of active)releaseVoice(v);active.clear()}
-  const now=ctx.currentTime,osc=ctx.createOscillator();osc.type=$("wave").value;osc.frequency.value=noteFreq(midi);
+  ensureAudio();
+  const playedMidi=midi+currentOct()*12;
+  if($("mono").checked){
+    const voices=[];
+    for(const set of active.values())for(const v of set)voices.push(v);
+    voices.forEach(releaseVoice);
+  }
+  const now=ctx.currentTime,osc=ctx.createOscillator();
+  osc.type=$("wave").value;osc.frequency.value=noteFreq(playedMidi);
   osc.detune.value=parseFloat(document.querySelector(".knob[data-control='detune']").dataset.value||0);
-  const amp=ctx.createGain();amp.gain.setValueAtTime(.0001,now);amp.gain.exponentialRampToValueAtTime(Math.max(.001,velocity),now+val("attack"));amp.gain.exponentialRampToValueAtTime(Math.max(.001,val("sustain")*velocity),now+val("attack")+val("decay"));
+  const amp=ctx.createGain();
+  amp.gain.setValueAtTime(.0001,now);
+  amp.gain.exponentialRampToValueAtTime(Math.max(.001,velocity),now+val("attack"));
+  amp.gain.exponentialRampToValueAtTime(Math.max(.001,val("sustain")*velocity),now+val("attack")+val("decay"));
   osc.connect(amp);amp.connect(filter);lfoPitchGain.connect(osc.detune);
   let sub=null;
-  if($("subOn").checked){sub=ctx.createOscillator();sub.type="sine";sub.frequency.value=noteFreq(midi-12);const sa=ctx.createGain();sa.gain.value=.25;sub.connect(sa);sa.connect(amp);sub.start()}
-  osc.start();active.set(midi,{osc,amp,sub,midi});
-  if(duration!=null)setTimeout(()=>stopNote(midi-currentOct()*12),duration*1000)
+  if($("subOn").checked){
+    sub=ctx.createOscillator();sub.type="sine";sub.frequency.value=noteFreq(playedMidi-12);
+    const sa=ctx.createGain();sa.gain.value=.25;sub.connect(sa);sa.connect(amp);sub.start()
+  }
+  const v={osc,amp,sub,midi:playedMidi,released:false,timer:null};
+  osc.start();addActiveVoice(v);
+  if(duration!=null)v.timer=setTimeout(()=>releaseVoice(v),Math.max(0,duration)*1000);
+  return v
 }
 function releaseVoice(v){
-  if(!ctx||!v)return;const now=ctx.currentTime;v.amp.gain.cancelScheduledValues(now);v.amp.gain.setTargetAtTime(.0001,now,Math.max(.01,val("release")/4));
-  try{v.osc.stop(now+val("release")+.1)}catch(e){}if(v.sub)try{v.sub.stop(now+val("release")+.1)}catch(e){}
+  if(!ctx||!v||v.released)return;
+  v.released=true;
+  if(v.timer){clearTimeout(v.timer);v.timer=null}
+  removeActiveVoice(v);
+  const now=ctx.currentTime,rel=Math.max(.01,val("release"));
+  v.amp.gain.cancelScheduledValues(now);
+  v.amp.gain.setTargetAtTime(.0001,now,Math.max(.01,rel/4));
+  try{v.osc.stop(now+rel+.1)}catch(e){}
+  if(v.sub)try{v.sub.stop(now+rel+.1)}catch(e){}
 }
-function stopNote(midi){midi+=currentOct()*12;const v=active.get(midi);if(v){releaseVoice(v);active.delete(midi)}}
-function panic(){for(const[,v]of active)releaseVoice(v);active.clear()}
+function stopNote(midi){
+  const playedMidi=midi+currentOct()*12,set=active.get(playedMidi);
+  if(!set)return;
+  [...set].forEach(releaseVoice)
+}
+function panic(){
+  const voices=[];
+  for(const set of active.values())for(const v of set)voices.push(v);
+  voices.forEach(releaseVoice);
+  active.clear()
+}
 
 $("power").onclick=()=>{ensureAudio();$("power").textContent="Audio Ready"};$("panic").onclick=panic;
 

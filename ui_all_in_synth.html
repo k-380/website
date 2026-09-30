@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UI全部盛りシンセサイザー</title>
+<style>
+:root{
+  --bg:#101114;--panel:#181b20;--panel2:#22262d;--line:#343a44;
+  --text:#eef1f5;--muted:#9aa3af;--accent:#8fd3ff;--accent2:#f7b955;--danger:#ff7b7b;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:linear-gradient(180deg,#0e1013,#141820 60%,#0e1013);color:var(--text)}
+header{position:sticky;top:0;z-index:10;padding:14px 18px;background:rgba(12,14,18,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:18px;margin:0 10px 0 0}
+.wrap{max-width:1500px;margin:0 auto;padding:14px}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px}
+.panel{background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+.panel h2{font-size:14px;margin:0 0 10px;color:#fff;letter-spacing:.04em}
+.panel h3{font-size:12px;margin:12px 0 8px;color:var(--muted)}
+.c4{grid-column:span 4}.c5{grid-column:span 5}.c7{grid-column:span 7}.c8{grid-column:span 8}
+@media(max-width:980px){.c4,.c5,.c7,.c8{grid-column:span 12}}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.col{display:flex;flex-direction:column;gap:7px;min-width:0}
+label{font-size:12px;color:var(--muted)}input[type=range]{width:100%}
+select,input[type=number],input[type=text],button{border:1px solid var(--line);background:#0f1217;color:var(--text);border-radius:9px;padding:8px 10px}
+button{cursor:pointer}button:hover{border-color:#6e7a8b}button.primary{background:#20374a;border-color:#315a77}button.warn{background:#4a2b20;border-color:#7d4734}
+.small{font-size:11px;color:var(--muted)}.value{font-variant-numeric:tabular-nums;font-size:12px;color:#fff}
+.switch{position:relative;width:48px;height:26px;display:inline-block}.switch input{display:none}.switch span{position:absolute;inset:0;background:#3a4049;border-radius:20px;transition:.2s}
+.switch span:after{content:"";position:absolute;width:20px;height:20px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s}
+.switch input:checked+span{background:#2d799f}.switch input:checked+span:after{transform:translateX(22px)}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}.seg input{display:none}.seg label{padding:8px 12px;background:#101319;cursor:pointer;color:#cfd5dc}.seg input:checked+label{background:#29445a;color:#fff}
+.knobWrap{display:flex;gap:14px;flex-wrap:wrap}.knobBox{width:74px;text-align:center}
+.knob{width:58px;height:58px;border-radius:50%;background:radial-gradient(circle at 50% 40%,#454d59,#14181d 70%);border:2px solid #5a6472;margin:0 auto 5px;position:relative}
+.knob:before{content:"";position:absolute;width:3px;height:18px;background:var(--accent);left:27px;top:5px;border-radius:3px;transform-origin:1.5px 24px;transform:rotate(var(--rot,-135deg))}
+canvas{width:100%;background:#0b0d11;border:1px solid var(--line);border-radius:10px}
+.xy{position:relative;height:220px;border:1px solid var(--line);border-radius:10px;background:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px),#0c0f14;background-size:25% 25%;touch-action:none}
+.xyDot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent2);transform:translate(-50%,-50%);box-shadow:0 0 18px #f7b95580}
+.keyboard{display:flex;height:150px;user-select:none;overflow-x:auto;padding-bottom:4px}
+.key{position:relative;flex:1;min-width:42px;border:1px solid #111;border-radius:0 0 6px 6px;cursor:pointer}.white{background:#f4f4f4}.black{background:#171717;width:28px;min-width:28px;height:95px;margin-left:-14px;margin-right:-14px;z-index:2;flex:0 0 28px}.key.active{background:var(--accent2)}
+.padGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.pad{aspect-ratio:1;border:1px solid var(--line);border-radius:12px;background:#11151b;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}.pad.on,.pad:active{background:#31566f}
+.steps{display:grid;grid-template-columns:repeat(16,1fr);gap:5px}.step{aspect-ratio:1;border:1px solid #3b424c;border-radius:5px;background:#101318;cursor:pointer}.step.on{background:#3d6c89}.step.play{outline:2px solid var(--accent2)}
+.meter{height:10px;background:#0d0f12;border-radius:20px;overflow:hidden;border:1px solid var(--line)}.meter>div{height:100%;width:0;background:linear-gradient(90deg,#76d98b,#efd367,#ff7b7b)}
+hr{border:none;border-top:1px solid var(--line);margin:12px 0}.badge{padding:4px 8px;border:1px solid var(--line);border-radius:20px;font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+<h1>UI全部盛りシンセサイザー</h1>
+<button id="power" class="primary">Audio Start</button>
+<button id="panic" class="warn">PANIC</button>
+<span class="badge">Web Audio API</span>
+<span class="small">PCキーボード: A W S E D F T G Y H U J K</span>
+</header>
+<div class="wrap"><div class="grid">
+
+<section class="panel c4">
+<h2>MASTER / OSC</h2>
+<div class="row">
+<div class="col" style="flex:1"><label>Waveform</label><select id="wave"><option>sawtooth</option><option>square</option><option>triangle</option><option>sine</option></select></div>
+<div class="col"><label>Sub Osc</label><label class="switch"><input id="subOn" type="checkbox" checked><span></span></label></div>
+<div class="col"><label>Mono</label><label class="switch"><input id="mono" type="checkbox"><span></span></label></div>
+</div>
+<h3>Octave</h3>
+<div class="seg">
+<input type="radio" name="oct" id="octm1" value="-1"><label for="octm1">-1</label>
+<input type="radio" name="oct" id="oct0" value="0" checked><label for="oct0">0</label>
+<input type="radio" name="oct" id="oct1" value="1"><label for="oct1">+1</label>
+</div>
+<h3>Quick knobs</h3>
+<div class="knobWrap">
+<div class="knobBox"><div class="knob" data-control="detune"></div><div class="small">DETUNE</div><div id="detuneV" class="value">0 ct</div></div>
+<div class="knobBox"><div class="knob" data-control="drive"></div><div class="small">DRIVE</div><div id="driveV" class="value">0%</div></div>
+<div class="knobBox"><div class="knob" data-control="volume"></div><div class="small">VOLUME</div><div id="volumeV" class="value">70%</div></div>
+</div>
+<hr><div class="col"><label>Master Volume <span id="masterV" class="value">0.70</span></label><input id="master" type="range" min="0" max="1" step="0.01" value="0.7"></div>
+</section>
+
+<section class="panel c4">
+<h2>FILTER</h2>
+<div class="row">
+<div class="col" style="flex:1"><label>Type</label><select id="filterType"><option>lowpass</option><option>highpass</option><option>bandpass</option><option>notch</option></select></div>
+<div class="col"><label>Key Track</label><input id="keyTrack" type="checkbox" checked></div>
+</div>
+<div class="col">
+<label>Cutoff <span id="cutoffV" class="value">1800 Hz</span></label><input id="cutoff" type="range" min="80" max="12000" step="1" value="1800">
+<label>Resonance <span id="resV" class="value">2.0</span></label><input id="res" type="range" min="0.1" max="20" step="0.1" value="2">
+</div>
+<h3>Filter envelope amount</h3><input id="filterEnv" type="range" min="-5000" max="5000" step="10" value="1800">
+</section>
+
+<section class="panel c4">
+<h2>ENVELOPE ADSR</h2>
+<div class="col">
+<label>Attack <span id="aV" class="value">0.02 s</span></label><input id="attack" type="range" min="0.001" max="2" step="0.001" value="0.02">
+<label>Decay <span id="dV" class="value">0.20 s</span></label><input id="decay" type="range" min="0.01" max="3" step="0.01" value="0.2">
+<label>Sustain <span id="sV" class="value">0.65</span></label><input id="sustain" type="range" min="0" max="1" step="0.01" value="0.65">
+<label>Release <span id="rV" class="value">0.35 s</span></label><input id="release" type="range" min="0.01" max="5" step="0.01" value="0.35">
+</div>
+</section>
+
+<section class="panel c5">
+<h2>LFO / MOD</h2>
+<div class="row">
+<div class="col" style="flex:1"><label>LFO shape</label><select id="lfoShape"><option>sine</option><option>triangle</option><option>square</option><option>sawtooth</option></select></div>
+<div class="col" style="width:110px"><label>Rate Hz</label><input id="lfoRateNum" type="number" min="0.1" max="20" step="0.1" value="5"></div>
+</div>
+<label>Pitch depth <span id="lfoPitchV">8</span> ct</label><input id="lfoPitch" type="range" min="0" max="100" value="8">
+<label>Filter depth <span id="lfoFilterV">500</span> Hz</label><input id="lfoFilter" type="range" min="0" max="4000" value="500">
+<label>Tempo sync</label><input id="tempoSync" type="checkbox">
+</section>
+
+<section class="panel c7"><h2>XY PAD</h2><div id="xy" class="xy"><div id="xyDot" class="xyDot" style="left:50%;top:50%"></div></div><div class="small">X = filter cutoff / Y = resonance</div></section>
+
+<section class="panel c8"><h2>KEYBOARD</h2><div id="keyboard" class="keyboard"></div></section>
+<section class="panel c4"><h2>PADS</h2><div class="padGrid" id="pads"></div></section>
+
+<section class="panel c8">
+<h2>STEP SEQUENCER</h2>
+<div class="row">
+<button id="seqPlay">▶ Play</button><button id="seqStop">■ Stop</button>
+<div class="col"><label>BPM</label><input id="bpm" type="number" min="40" max="240" value="120"></div>
+<div class="col"><label>Gate</label><input id="gate" type="range" min="0.05" max="0.95" step="0.05" value="0.55"></div>
+</div>
+<div class="steps" id="steps"></div>
+<h3>Pattern preset</h3>
+<select id="pattern"><option value="manual">Manual</option><option value="four">Four on floor</option><option value="offbeat">Offbeat</option><option value="euclid">Euclid-ish</option></select>
+</section>
+
+<section class="panel c4">
+<h2>FX / ROUTING</h2>
+<div class="col">
+<label>Delay Time <span id="delayV">0.22 s</span></label><input id="delayTime" type="range" min="0" max="0.8" step="0.01" value="0.22">
+<label>Feedback <span id="fbV">0.25</span></label><input id="feedback" type="range" min="0" max="0.85" step="0.01" value="0.25">
+<label>Delay Mix <span id="mixV">0.20</span></label><input id="delayMix" type="range" min="0" max="0.8" step="0.01" value="0.2">
+<label>Stereo Pan <span id="panV">0.00</span></label><input id="pan" type="range" min="-1" max="1" step="0.01" value="0">
+</div>
+</section>
+
+<section class="panel c8"><h2>OSCILLOSCOPE / LEVEL</h2><canvas id="scope" width="900" height="220"></canvas><div class="meter"><div id="meterFill"></div></div></section>
+
+<section class="panel c4">
+<h2>PRESET / INPUT MIX</h2>
+<div class="col">
+<label>Preset</label><select id="preset"><option value="init">Init</option><option value="bass">Bass</option><option value="lead">Lead</option><option value="pad">Pad</option><option value="acid">Acid-ish</option></select>
+<label>Patch name</label><input id="patchName" type="text" value="My Patch">
+<button id="randomize">Randomize</button><button id="reset">Reset</button>
+</div>
+</section>
+
+</div></div>
+
+<script>
+let ctx,master,filter,analyser,meterAnalyser,delay,feedback,delayMix,dry,panNode,driveNode;
+let active=new Map(),lfo,lfoPitchGain,lfoFilterGain,seqTimer=null,seqIndex=0;
+const $=id=>document.getElementById(id), val=id=>parseFloat($(id).value);
+
+function ensureAudio(){
+  if(ctx){if(ctx.state==="suspended")ctx.resume();return}
+  ctx=new(window.AudioContext||window.webkitAudioContext)();
+  master=ctx.createGain();master.gain.value=val("master");
+  filter=ctx.createBiquadFilter();filter.type=$("filterType").value;filter.frequency.value=val("cutoff");filter.Q.value=val("res");
+  driveNode=ctx.createWaveShaper();driveNode.curve=makeDriveCurve(0);driveNode.oversample="2x";
+  dry=ctx.createGain();dry.gain.value=1;
+  delay=ctx.createDelay(1);delay.delayTime.value=val("delayTime");
+  feedback=ctx.createGain();feedback.gain.value=val("feedback");
+  delayMix=ctx.createGain();delayMix.gain.value=val("delayMix");
+  panNode=ctx.createStereoPanner();panNode.pan.value=val("pan");
+  analyser=ctx.createAnalyser();analyser.fftSize=2048;
+  meterAnalyser=ctx.createAnalyser();meterAnalyser.fftSize=512;
+  filter.connect(driveNode);driveNode.connect(dry);driveNode.connect(delay);delay.connect(feedback);feedback.connect(delay);delay.connect(delayMix);dry.connect(panNode);delayMix.connect(panNode);panNode.connect(master);master.connect(analyser);analyser.connect(meterAnalyser);meterAnalyser.connect(ctx.destination);
+  lfo=ctx.createOscillator();lfo.type=$("lfoShape").value;lfo.frequency.value=val("lfoRateNum");
+  lfoPitchGain=ctx.createGain();lfoPitchGain.gain.value=val("lfoPitch");
+  lfoFilterGain=ctx.createGain();lfoFilterGain.gain.value=val("lfoFilter");
+  lfo.connect(lfoPitchGain);lfo.connect(lfoFilterGain);lfoFilterGain.connect(filter.detune);lfo.start();drawScope()
+}
+function makeDriveCurve(amount){
+  const n=44100,curve=new Float32Array(n),k=amount*100;
+  for(let i=0;i<n;i++){const x=i*2/n-1;curve[i]=(1+k)*x/(1+k*Math.abs(x))}
+  return curve
+}
+function noteFreq(m){return 440*Math.pow(2,(m-69)/12)}
+function currentOct(){const el=document.querySelector('input[name="oct"]:checked');return parseInt(el.value||0)}
+function startNote(midi,velocity=1,duration=null){
+  ensureAudio();midi+=currentOct()*12;
+  if($("mono").checked){for(const[,v]of active)releaseVoice(v);active.clear()}
+  const now=ctx.currentTime,osc=ctx.createOscillator();osc.type=$("wave").value;osc.frequency.value=noteFreq(midi);
+  osc.detune.value=parseFloat(document.querySelector(".knob[data-control='detune']").dataset.value||0);
+  const amp=ctx.createGain();amp.gain.setValueAtTime(.0001,now);amp.gain.exponentialRampToValueAtTime(Math.max(.001,velocity),now+val("attack"));amp.gain.exponentialRampToValueAtTime(Math.max(.001,val("sustain")*velocity),now+val("attack")+val("decay"));
+  osc.connect(amp);amp.connect(filter);lfoPitchGain.connect(osc.detune);
+  let sub=null;
+  if($("subOn").checked){sub=ctx.createOscillator();sub.type="sine";sub.frequency.value=noteFreq(midi-12);const sa=ctx.createGain();sa.gain.value=.25;sub.connect(sa);sa.connect(amp);sub.start()}
+  osc.start();active.set(midi,{osc,amp,sub,midi});
+  if(duration!=null)setTimeout(()=>stopNote(midi-currentOct()*12),duration*1000)
+}
+function releaseVoice(v){
+  if(!ctx||!v)return;const now=ctx.currentTime;v.amp.gain.cancelScheduledValues(now);v.amp.gain.setTargetAtTime(.0001,now,Math.max(.01,val("release")/4));
+  try{v.osc.stop(now+val("release")+.1)}catch(e){}if(v.sub)try{v.sub.stop(now+val("release")+.1)}catch(e){}
+}
+function stopNote(midi){midi+=currentOct()*12;const v=active.get(midi);if(v){releaseVoice(v);active.delete(midi)}}
+function panic(){for(const[,v]of active)releaseVoice(v);active.clear()}
+
+$("power").onclick=()=>{ensureAudio();$("power").textContent="Audio Ready"};$("panic").onclick=panic;
+
+["master","cutoff","res","attack","decay","sustain","release","lfoPitch","lfoFilter","delayTime","feedback","delayMix","pan"].forEach(id=>{
+  $(id).addEventListener("input",()=>{
+    const x=val(id);if(!ctx)return updateReadouts();
+    if(id==="master")master.gain.value=x;if(id==="cutoff")filter.frequency.value=x;if(id==="res")filter.Q.value=x;
+    if(id==="lfoPitch")lfoPitchGain.gain.value=x;if(id==="lfoFilter")lfoFilterGain.gain.value=x;
+    if(id==="delayTime")delay.delayTime.value=x;if(id==="feedback")feedback.gain.value=x;if(id==="delayMix")delayMix.gain.value=x;if(id==="pan")panNode.pan.value=x;
+    updateReadouts()
+  })
+});
+$("filterType").onchange=()=>{if(filter)filter.type=$("filterType").value};
+$("lfoShape").onchange=()=>{if(lfo)lfo.type=$("lfoShape").value};
+$("lfoRateNum").oninput=()=>{if(lfo)lfo.frequency.value=val("lfoRateNum")};
+
+function updateReadouts(){
+ $("masterV").textContent=val("master").toFixed(2);$("cutoffV").textContent=Math.round(val("cutoff"))+" Hz";$("resV").textContent=val("res").toFixed(1);
+ $("aV").textContent=val("attack").toFixed(2)+" s";$("dV").textContent=val("decay").toFixed(2)+" s";$("sV").textContent=val("sustain").toFixed(2);$("rV").textContent=val("release").toFixed(2)+" s";
+ $("lfoPitchV").textContent=val("lfoPitch");$("lfoFilterV").textContent=val("lfoFilter");$("delayV").textContent=val("delayTime").toFixed(2)+" s";$("fbV").textContent=val("feedback").toFixed(2);$("mixV").textContent=val("delayMix").toFixed(2);$("panV").textContent=val("pan").toFixed(2)
+}
+updateReadouts();
+
+document.querySelectorAll(".knob").forEach(k=>{
+ k.dataset.value=k.dataset.control==="volume"?70:0;
+ const setKnob=()=>{
+  let v=parseFloat(k.dataset.value),rot=k.dataset.control==="detune"?-135+(v+50)/100*270:-135+v/100*270;k.style.setProperty("--rot",rot+"deg");
+  if(k.dataset.control==="detune")$("detuneV").textContent=Math.round(v)+" ct";
+  if(k.dataset.control==="drive"){$("driveV").textContent=Math.round(v)+"%";if(driveNode)driveNode.curve=makeDriveCurve(v/100)}
+  if(k.dataset.control==="volume"){$("volumeV").textContent=Math.round(v)+"%";$("master").value=v/100;$("master").dispatchEvent(new Event("input"))}
+ };
+ setKnob();let sy,sv;
+ k.addEventListener("pointerdown",e=>{sy=e.clientY;sv=parseFloat(k.dataset.value);k.setPointerCapture(e.pointerId)});
+ k.addEventListener("pointermove",e=>{if(!k.hasPointerCapture(e.pointerId))return;const d=(sy-e.clientY)*.6;k.dataset.value=k.dataset.control==="detune"?Math.max(-50,Math.min(50,sv+d)):Math.max(0,Math.min(100,sv+d));setKnob()})
+});
+
+const notes=[60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76],blackSet=new Set([1,3,6,8,10]),kb=$("keyboard");
+notes.forEach(m=>{const key=document.createElement("div");key.className="key "+(blackSet.has(m%12)?"black":"white");key.dataset.note=m;key.onpointerdown=()=>{key.classList.add("active");startNote(m)};key.onpointerup=key.onpointerleave=()=>{key.classList.remove("active");stopNote(m)};kb.appendChild(key)});
+const keyMap={a:60,w:61,s:62,e:63,d:64,f:65,t:66,g:67,y:68,h:69,u:70,j:71,k:72};
+addEventListener("keydown",e=>{if(e.repeat||!keyMap[e.key])return;startNote(keyMap[e.key])});addEventListener("keyup",e=>{if(!keyMap[e.key])return;stopNote(keyMap[e.key])});
+
+const padNotes=[36,38,40,43,48,50,52,55,60,62,64,67,72,74,76,79];
+padNotes.forEach((m,i)=>{const p=document.createElement("div");p.className="pad";p.textContent="PAD "+(i+1);p.onpointerdown=()=>{p.classList.add("on");startNote(m,.8,.18)};p.onpointerup=()=>p.classList.remove("on");$("pads").appendChild(p)});
+
+const xy=$("xy"),dot=$("xyDot");
+function xyMove(e){const r=xy.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));dot.style.left=x*100+"%";dot.style.top=y*100+"%";$("cutoff").value=80+Math.pow(x,2)*11920;$("res").value=.1+(1-y)*19.9;$("cutoff").dispatchEvent(new Event("input"));$("res").dispatchEvent(new Event("input"))}
+xy.onpointerdown=e=>{xy.setPointerCapture(e.pointerId);xyMove(e)};xy.onpointermove=e=>{if(xy.hasPointerCapture(e.pointerId))xyMove(e)};
+
+const stepEls=[];
+for(let i=0;i<16;i++){const s=document.createElement("div");s.className="step";s.onclick=()=>s.classList.toggle("on");$("steps").appendChild(s);stepEls.push(s)}
+function setPattern(type){stepEls.forEach(s=>s.classList.remove("on"));let arr=[];if(type==="four")arr=[0,4,8,12];if(type==="offbeat")arr=[2,6,10,14];if(type==="euclid")arr=[0,3,5,8,11,13];arr.forEach(i=>stepEls[i].classList.add("on"))}
+$("pattern").onchange=()=>setPattern($("pattern").value);
+$("seqPlay").onclick=()=>{
+ ensureAudio();clearInterval(seqTimer);seqIndex=0;
+ const tick=()=>{stepEls.forEach(s=>s.classList.remove("play"));const s=stepEls[seqIndex];s.classList.add("play");if(s.classList.contains("on")){const dur=(60/val("bpm"))/4*val("gate");startNote(48+(seqIndex%4)*2,.65,dur)}seqIndex=(seqIndex+1)%16};
+ tick();seqTimer=setInterval(tick,(60/val("bpm"))*1000/4)
+};
+$("seqStop").onclick=()=>{clearInterval(seqTimer);seqTimer=null;stepEls.forEach(s=>s.classList.remove("play"))};
+
+function drawScope(){
+ const c=$("scope"),g=c.getContext("2d"),arr=new Uint8Array(analyser.fftSize),meterArr=new Uint8Array(meterAnalyser.fftSize);
+ function frame(){requestAnimationFrame(frame);analyser.getByteTimeDomainData(arr);g.clearRect(0,0,c.width,c.height);g.beginPath();g.moveTo(0,c.height/2);for(let i=0;i<arr.length;i++){const x=i/(arr.length-1)*c.width,y=arr[i]/255*c.height;g.lineTo(x,y)}g.strokeStyle="#8fd3ff";g.lineWidth=2;g.stroke();meterAnalyser.getByteTimeDomainData(meterArr);let sum=0;for(const v of meterArr){const x=(v-128)/128;sum+=x*x}const rms=Math.sqrt(sum/meterArr.length);$("meterFill").style.width=Math.min(100,rms*180)+"%"}frame()
+}
+const presets={
+ init:{wave:"sawtooth",cutoff:1800,res:2,attack:.02,decay:.2,sustain:.65,release:.35,lfoPitch:8,lfoFilter:500,delayMix:.2},
+ bass:{wave:"square",cutoff:650,res:6,attack:.005,decay:.18,sustain:.45,release:.18,lfoPitch:0,lfoFilter:150,delayMix:.05},
+ lead:{wave:"sawtooth",cutoff:3200,res:4,attack:.01,decay:.16,sustain:.8,release:.28,lfoPitch:14,lfoFilter:900,delayMix:.28},
+ pad:{wave:"triangle",cutoff:2200,res:1.2,attack:.8,decay:1.2,sustain:.72,release:2.5,lfoPitch:5,lfoFilter:300,delayMix:.35},
+ acid:{wave:"sawtooth",cutoff:900,res:13,attack:.005,decay:.12,sustain:.3,release:.12,lfoPitch:0,lfoFilter:1400,delayMix:.12}
+};
+function applyPreset(name){const p=presets[name];if(!p)return;Object.entries(p).forEach(([k,v])=>{if($(k)){$(k).value=v;$(k).dispatchEvent(new Event("input"))}});$("wave").value=p.wave}
+$("preset").onchange=()=>applyPreset($("preset").value);$("reset").onclick=()=>{applyPreset("init");setPattern("manual")};
+$("randomize").onclick=()=>{$("wave").selectedIndex=Math.floor(Math.random()*4);$("cutoff").value=200+Math.random()*8000;$("res").value=.2+Math.random()*14;$("attack").value=.005+Math.random()*.7;$("decay").value=.05+Math.random();$("sustain").value=Math.random();$("release").value=.05+Math.random()*2;$("lfoPitch").value=Math.random()*40;$("lfoFilter").value=Math.random()*2000;["cutoff","res","attack","decay","sustain","release","lfoPitch","lfoFilter"].forEach(id=>$(id).dispatchEvent(new Event("input")))};
+</script>
+</body>
+</html>

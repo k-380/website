@@ -169,113 +169,85 @@ function parseNum(value){
 }
 
 function parseMachineReadable(raw){
-  const lines = normalizeText(raw)
-    .split('\n')
-    .map(x => x.trim())
-    .filter(Boolean);
+  const text = normalizeText(raw).replace(/，/g, ',');
 
-  let regime = null;
-  let confidence = null;
-  let vi = null;
-  let inOrders = false;
-  let sawStart = false;
-  let sawEnd = false;
-  const orders = [];
+  // 改行の有無に依存せず、ラベルを直接抽出する。
+  const regimeMatches = [...text.matchAll(/\bREGIME\s*,\s*(BOX|TREND_UP|TREND_DOWN|UNCERTAIN)\b/gi)];
+  const confidenceMatches = [...text.matchAll(/\bREGIME_CONFIDENCE\s*,\s*(\d+(?:\.\d+)?)\b/gi)];
+  const viMatches = [...text.matchAll(/\bNIKKEI_VI\s*,\s*(\d+(?:\.\d+)?)\b/gi)];
 
-  for (const original of lines){
-    const line = original.replace(/，/g, ',');
-    const upper = line.toUpperCase();
+  if (regimeMatches.length === 0) throw new Error('REGIME 行が見つかりません。');
+  if (regimeMatches.length > 1) throw new Error('REGIME 行が重複しています。');
+  if (confidenceMatches.length === 0) throw new Error('REGIME_CONFIDENCE 行が見つかりません。');
+  if (confidenceMatches.length > 1) throw new Error('REGIME_CONFIDENCE 行が重複しています。');
+  if (viMatches.length > 1) throw new Error('NIKKEI_VI 行が重複しています。');
 
-    if (upper === 'ORDER_DATA'){
-      if (sawStart) throw new Error('ORDER_DATA が重複しています。');
-      inOrders = true;
-      sawStart = true;
-      continue;
-    }
+  const regime = regimeMatches[0][1].toUpperCase();
+  const confidence = Number(confidenceMatches[0][1]);
+  const vi = viMatches.length ? Number(viMatches[0][1]) : null;
 
-    if (upper === 'END_ORDER_DATA'){
-      if (!inOrders) throw new Error('END_ORDER_DATA の位置が不正です。');
-      inOrders = false;
-      sawEnd = true;
-      continue;
-    }
-
-    if (inOrders){
-      const p = line.split(',').map(x => x.trim());
-      if (p.length !== 5) throw new Error('注文行は必ず5列です: ' + original);
-
-      const side = p[0].toUpperCase();
-      const type = p[1].toUpperCase();
-
-      if (!['BUY','SELL'].includes(side))
-        throw new Error('SIDE は BUY または SELL です: ' + original);
-
-      if (!['LIMIT','STOP'].includes(type))
-        throw new Error('TYPE は LIMIT または STOP です: ' + original);
-
-      const entry = parseNum(p[2]);
-      const tp = parseNum(p[3]);
-      const sl = parseNum(p[4]);
-
-      if (entry === null || tp === null || sl === null)
-        throw new Error('ENTRY/TP/SL は数値のみで、桁区切りカンマは禁止です: ' + original);
-
-      if (side === 'BUY' && !(tp > 0 && sl < 0))
-        throw new Error('BUY は TP>0、SL<0 必須です: ' + original);
-
-      if (side === 'SELL' && !(tp < 0 && sl > 0))
-        throw new Error('SELL は TP<0、SL>0 必須です: ' + original);
-
-      if (type === 'LIMIT'){
-        if (side === 'BUY' && !(entry < 0))
-          throw new Error('BUY LIMIT は ENTRY_OFFSET<0 必須です: ' + original);
-        if (side === 'SELL' && !(entry > 0))
-          throw new Error('SELL LIMIT は ENTRY_OFFSET>0 必須です: ' + original);
-      }
-
-      if (type === 'STOP'){
-        if (side === 'BUY' && !(entry > 0))
-          throw new Error('BUY STOP は ENTRY_OFFSET>0 必須です: ' + original);
-        if (side === 'SELL' && !(entry < 0))
-          throw new Error('SELL STOP は ENTRY_OFFSET<0 必須です: ' + original);
-      }
-
-      orders.push({side, type, entry, tp, sl});
-      continue;
-    }
-
-    let m = line.match(/^REGIME\s*,\s*(BOX|TREND_UP|TREND_DOWN|UNCERTAIN)$/i);
-    if (m){
-      if (regime !== null) throw new Error('REGIME 行が重複しています。');
-      regime = m[1].toUpperCase();
-      continue;
-    }
-
-    m = line.match(/^REGIME_CONFIDENCE\s*,\s*(\d+(?:\.\d+)?)$/i);
-    if (m){
-      if (confidence !== null) throw new Error('REGIME_CONFIDENCE 行が重複しています。');
-      confidence = Number(m[1]);
-      continue;
-    }
-
-    m = line.match(/^NIKKEI_VI\s*,\s*(\d+(?:\.\d+)?)$/i);
-    if (m){
-      if (vi !== null) throw new Error('NIKKEI_VI 行が重複しています。');
-      vi = Number(m[1]);
-      continue;
-    }
-  }
-
-  if (!regime) throw new Error('REGIME 行が見つかりません。');
-  if (confidence === null) throw new Error('REGIME_CONFIDENCE 行が見つかりません。');
   if (confidence < 0 || confidence > 100)
     throw new Error('REGIME_CONFIDENCE は0～100で指定してください。');
 
-  if (!sawStart || !sawEnd)
-    throw new Error('ORDER_DATA / END_ORDER_DATA が見つかりません。');
+  // ORDER_DATA ～ END_ORDER_DATA を改行なしでも認識。
+  const startMatches = [...text.matchAll(/\bORDER_DATA\b/gi)];
+  const endMatches = [...text.matchAll(/\bEND_ORDER_DATA\b/gi)];
 
-  if (inOrders)
-    throw new Error('ORDER_DATA が閉じられていません。');
+  if (startMatches.length === 0 || endMatches.length === 0)
+    throw new Error('ORDER_DATA / END_ORDER_DATA が見つかりません。');
+  if (startMatches.length > 1) throw new Error('ORDER_DATA が重複しています。');
+  if (endMatches.length > 1) throw new Error('END_ORDER_DATA が重複しています。');
+
+  const orderStart = startMatches[0].index + startMatches[0][0].length;
+  const orderEnd = endMatches[0].index;
+
+  if (orderEnd < orderStart)
+    throw new Error('END_ORDER_DATA の位置が不正です。');
+
+  const orderBlock = text.slice(orderStart, orderEnd);
+  const orders = [];
+
+  // 注文行をCSVパターンとして直接抽出。
+  // 例: BUY,STOP,+180,+320,-260
+  const orderRe = /\b(BUY|SELL)\s*,\s*(LIMIT|STOP)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)\s*,\s*([+-]?\d+(?:\.\d+)?)(?=\s|$)/gi;
+
+  for (const m of orderBlock.matchAll(orderRe)){
+    const side = m[1].toUpperCase();
+    const type = m[2].toUpperCase();
+    const entry = parseNum(m[3]);
+    const tp = parseNum(m[4]);
+    const sl = parseNum(m[5]);
+
+    if (entry === null || tp === null || sl === null)
+      throw new Error('ENTRY/TP/SL は数値のみで、桁区切りカンマは禁止です。');
+
+    if (side === 'BUY' && !(tp > 0 && sl < 0))
+      throw new Error('BUY は TP>0、SL<0 必須です: ' + m[0]);
+
+    if (side === 'SELL' && !(tp < 0 && sl > 0))
+      throw new Error('SELL は TP<0、SL>0 必須です: ' + m[0]);
+
+    if (type === 'LIMIT'){
+      if (side === 'BUY' && !(entry < 0))
+        throw new Error('BUY LIMIT は ENTRY_OFFSET<0 必須です: ' + m[0]);
+      if (side === 'SELL' && !(entry > 0))
+        throw new Error('SELL LIMIT は ENTRY_OFFSET>0 必須です: ' + m[0]);
+    }
+
+    if (type === 'STOP'){
+      if (side === 'BUY' && !(entry > 0))
+        throw new Error('BUY STOP は ENTRY_OFFSET>0 必須です: ' + m[0]);
+      if (side === 'SELL' && !(entry < 0))
+        throw new Error('SELL STOP は ENTRY_OFFSET<0 必須です: ' + m[0]);
+    }
+
+    orders.push({side, type, entry, tp, sl});
+  }
+
+  // ORDER_DATA内に注文らしい文字があるのに1件も抽出できない場合は、
+  // 無言で「注文なし」にせずフォーマットエラーとして扱う。
+  if (orders.length === 0 && /\b(?:BUY|SELL)\b/i.test(orderBlock))
+    throw new Error('注文行を認識できません。各注文は SIDE,TYPE,ENTRY_OFFSET,TP_OFFSET,SL_OFFSET の5列で指定してください。');
 
   if (regime === 'UNCERTAIN'){
     if (orders.length > 0)

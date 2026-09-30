@@ -256,36 +256,63 @@ function makeOrderPrompt(){
   const txt =
 '日経225マイクロ先物について、次回ナイトセッション開始前に予約発注するIFD-OCO注文案を作成してください。\n\n' +
 '【最重要：市場データ】\n' +
-'以下のJSONを市場価格データの唯一の入力として使用してください。価格・指数・為替についてWeb検索で補完、置換、推測しないでください。nullや欠損は欠損のまま扱い、CONFIDENCEへ反映してください。\n\n' +
+'以下のJSONを市場価格データの唯一の入力として使用してください。\n' +
+'価格・指数・為替・ボラティリティをWeb検索で補完、置換、推測しないでください。\n' +
+'nullや欠損は欠損のまま扱い、CONFIDENCEへ反映してください。\n' +
+'JSON内のsourceは出典確認用です。重要イベントの解釈に必要な場合のみ追加Web検索可とします。\n\n' +
 '----- MARKET_DATA_START -----\n' +
 JSON.stringify(d,null,2) +
 '\n----- MARKET_DATA_END -----\n\n' +
-'【取引ルール】\n' +
-'・取引対象：日経225マイクロ先物。SBI証券HYPER先物を想定。\n' +
-'・ナイト開始前に予約発注。新規注文はそのナイト限り。未約定は終了で失効。\n' +
-'・約定後はOCOのTP/SLで決済。未決済建玉はナイト終了時の引成で全決済し翌日へ持ち越さない。\n' +
-'・基準価格Sは実際の予約発注時にHTMLへ入力するため、注文値はSからの差で示す。\n\n' +
+'【取引条件】\n' +
+'・取引対象：日経225マイクロ先物\n' +
+'・SBI証券HYPER先物を想定\n' +
+'・ナイト開始前に予約発注\n' +
+'・新規注文はそのナイト限り有効\n' +
+'・未約定注文はナイト終了で失効\n' +
+'・約定後はOCOのTP/SLで決済\n' +
+'・未決済建玉はナイト終了時の引成で全決済\n' +
+'・翌日へ建玉を持ち越さない\n' +
+'・引成価格は事前に推測しない\n\n' +
+'【基準価格S】\n' +
+'実際の予約発注時にHTMLへ基準価格Sを入力します。\n' +
+'新規価格は絶対値ではなくSからの差分で出力してください。\n' +
+'TP/SLも絶対値ではなく約定価格からの差分で出力してください。\n\n' +
 '【レジーム判定】\n' +
-'必ず BOX / TREND_UP / TREND_DOWN / UNCERTAIN の1つに分類し CONFIDENCE 0〜100を付ける。\n' +
-'日経225先物の直近24〜48時間の高安切上げ/切下げ、DAY/NIGHT方向、ブレイクとレンジ復帰、実現値幅の拡大/縮小を重視する。\n' +
-'NASDAQ100先物・SOX・NYダウ先物との方向一致、USD/JPYとの整合、VIX・日経平均VIの変化、市場間整合性も評価する。\n\n' +
-'【注文方式】\n' +
-'・BOX：すべてLIMIT。\n' +
-'・TREND_UP / TREND_DOWN：すべてSTOP。\n' +
-'・UNCERTAIN：注文数削減、Sから遠ざける、発注見送り可。\n' +
-'・BOX/TRENDでは原則BUY ' + $('buyN').value + '本、SELL ' + $('sellN').value + '本。\n' +
-'・TP/SLは一律にせずJSONの直近ボラに合わせる。\n' +
-'・引成価格は事前に推測しない。\n\n' +
-'【回答】\n' +
-'説明の最後に必ず次の機械可読形式を付ける。\n' +
-'数値単位は円。新規値はSからの差、TP/SLは約定価格からの差。\n\n' +
-'REGIME,TREND_UP\n' +
-'REGIME_CONFIDENCE,72\n' +
+'必ず BOX / TREND_UP / TREND_DOWN / UNCERTAIN の1つに分類し、REGIME_CONFIDENCEを0～100で付けてください。\n' +
+'日経225先物の直近24～48時間、高値・安値の切り上げ/切り下げ、DAY/NIGHT方向、ブレイクとレンジ復帰、実現値幅の拡大/縮小を重視してください。\n' +
+'NASDAQ100先物、SOX、NYダウ先物、USD/JPY、VIX、日経平均VIとの整合も評価してください。\n' +
+'BOXは単なる方向不明ではなく、平均回帰が複数回確認できる場合に限ってください。\n' +
+'方向不明、ボラ拡大、市場間不一致、欠損が多い場合はUNCERTAINを優先してください。\n\n' +
+'【注文生成】\n' +
+'・BOXでは平均回帰型のLIMIT注文\n' +
+'・TREND_UP / TREND_DOWNではブレイク確認型のSTOP注文\n' +
+'・UNCERTAINでは注文数削減、Sから遠ざける、または発注見送り可\n' +
+'・BOX/TRENDでは原則BUY ' + $('buyN').value + '本、SELL ' + $('sellN').value + '本\n' +
+'・単純等間隔は禁止\n' +
+'・TP/SLは一律にせず、直近実現値幅やボラティリティを反映\n' +
+'・集中リスク、連続約定、往復ビンタ、後続取消、連続SL後取消を評価\n\n' +
+'【回答本文】\n' +
+'使用データの鮮度、欠損、BOX支持材料、TREND支持材料、不確実材料、想定ナイト値幅、注文ロジック、集中リスクを説明してください。\n\n' +
+'【機械可読出力】\n' +
+'回答の最後に、必ず次の仕様で機械可読ブロックを出力してください。\n' +
+'このブロックにはMarkdownコードフェンス、見出し、説明文、箇条書き、コメントを入れないでください。\n\n' +
+'REGIME,<BOX|TREND_UP|TREND_DOWN|UNCERTAIN>\n' +
+'REGIME_CONFIDENCE,<0-100>\n' +
 'ORDER_DATA\n' +
-'BUY,STOP,+180,+260,-220\n' +
-'SELL,STOP,-420,-280,+240\n' +
+'<SIDE>,<TYPE>,<ENTRY_OFFSET>,<TP_OFFSET>,<SL_OFFSET>\n' +
 'END_ORDER_DATA\n' +
-'NIKKEI_VI,26.56';
+'NIKKEI_VI,<value>\n\n' +
+'注文行は必ず5列です。\n' +
+'SIDEはBUYまたはSELL。\n' +
+'TYPEはLIMITまたはSTOP。\n' +
+'ENTRY_OFFSETはSからの差。\n' +
+'TP_OFFSETとSL_OFFSETは約定価格からの差。\n' +
+'BUYはTP正・SL負、SELLはTP負・SL正。\n' +
+'LIMITではBUY新規は負、SELL新規は正。\n' +
+'STOPではBUY新規は原則正、SELL新規は原則負。\n' +
+'数値に桁区切りカンマを使用しないでください。\n' +
+'日経平均VIがJSONで取得できている場合のみNIKKEI_VI行を出力してください。\n' +
+'UNCERTAINで発注見送りの場合はORDER_DATAとEND_ORDER_DATAの間を空にしてください。';
 
   $('orderPrompt').value = txt;
 }

@@ -27,168 +27,328 @@ END_ORDER_DATA
 NIKKEI_VI,24.23</pre></section>
 </div></div>
 <script>
-const symbols=['日経225先物','TOPIX先物','NYダウ先物','NASDAQ100先物','SOX指数','USD/JPY','WTI原油','金（ゴールド）','VIX','日経平均VI'];
-const $=id=>document.getElementById(id); const yen=n=>'¥'+Math.round(n).toLocaleString('ja-JP');
-function init(){ $('checks').innerHTML=symbols.map((s,i)=>`<label class="check"><input type="checkbox" value="${s}" ${i<10?'checked':''}>${s}</label>`).join(''); load(); makeResearchPrompt(); if($('marketJson').value.trim())makeOrderPrompt(); }
-function setChecks(v){document.querySelectorAll('#checks input').forEach(x=>x.checked=v);makeResearchPrompt();save()}
-function selected(){return [...document.querySelectorAll('#checks input:checked')].map(x=>x.value)}
-function makeResearchPrompt(){let sy=selected();let txt=`あなたは市場データ収集担当です。投資判断、相場予測、レジーム判定、注文提案は行わないでください。
+'use strict';
 
-Web上の最新情報を検索し、過去${$('days').value}日について次の市場を調査してください。
-${sy.map(x=>'・'+x).join('\n')}
+const symbols = ['日経225先物','TOPIX先物','NYダウ先物','NASDAQ100先物','SOX指数','USD/JPY','WTI原油','金（ゴールド）','VIX','日経平均VI'];
+const $ = id => document.getElementById(id);
+const yen = n => '¥' + Math.round(n).toLocaleString('ja-JP');
 
-【収集ルール】
-・取得値を推測しない。取得できない値は null とする。
-・先物は可能な限り商品名と限月を特定し、現物・先物・CFDを混同しない。
-・各値のデータ時点、タイムゾーン、取得時刻 retrieved_at、source URLを記録する。
-・日経225先物は可能な限りDAY/NIGHTを分離し、OHLCを収集する。
-・現在値、期間始値・高値・安値、各日のOHLC、直近24〜48時間の値動きを収集する。
-・VIX、日経平均VI、NASDAQ100先物、SOX指数、USD/JPYを特に重視する。
-・異なる情報源で値が食い違う場合、時刻・限月・商品の違いを確認し、解消不能なら null として notes に理由を書く。
-・重要イベントは価格データと分離して events 配列に保存する。
-・数字の意味付けや売買判断はしない。
-・JSON以外の文章、Markdownコードフェンスを出力しない。
-
-【JSON形式】
-{
-  "schema_version":"1.0",
-  "retrieved_at":"ISO8601",
-  "timezone":"Asia/Tokyo",
-  "markets":{
-    "nikkei225_futures":{"instrument":null,"contract":null,"current":{"value":null,"as_of":null,"source":null},"sessions":[{"date":"YYYY-MM-DD","session":"DAY","open":null,"high":null,"low":null,"close":null,"source":null}]},
-    "topix_futures":{},
-    "dow_futures":{},
-    "nasdaq100_futures":{},
-    "sox":{},
-    "usdjpy":{},
-    "wti":{},
-    "gold":{},
-    "vix":{},
-    "nikkei_vi":{}
-  },
-  "events":[{"datetime":null,"title":null,"description":null,"source":null}],
-  "missing_data":[{"field":null,"reason":null}],
-  "notes":[]
+function selected(){
+  return Array.from(document.querySelectorAll('#checks input:checked')).map(x => x.value);
 }
 
-各市場には可能な範囲で current、daily または sessions、source を格納してください。数値は数値型、欠損は null にしてください。`; $('researchPrompt').value=txt;save();}
-function validateMarketJson(){try{let d=JSON.parse($('marketJson').value);if(!d.markets)throw new Error('markets がありません');$('jsonMsg').innerHTML='<span class="success">JSONを読み取りました。取得時刻: '+(d.retrieved_at||'不明')+'</span>';makeOrderPrompt();return d}catch(e){$('jsonMsg').innerHTML='<span class="error">JSONエラー: '+e.message+'</span>';return null}}
-function makeOrderPrompt(){let raw=$('marketJson').value.trim();if(!raw){$('jsonMsg').innerHTML='<span class="error">先に market_data.json を読み込んでください。</span>';return}let d;try{d=JSON.parse(raw)}catch(e){$('jsonMsg').innerHTML='<span class="error">JSONエラー: '+e.message+'</span>';return}let txt=`日経225マイクロ先物について、次回ナイトセッション開始前に予約発注するIFD-OCO注文案を作成してください。
+function initChecks(){
+  $('checks').innerHTML = symbols.map(function(s){
+    return '<label class="check"><input type="checkbox" value="' + s + '" checked>' + s + '</label>';
+  }).join('');
+}
 
-【最重要：市場データ】
-以下のJSONを市場価格データの唯一の入力として使用してください。価格・指数・為替についてWeb検索で補完、置換、推測しないでください。nullや欠損は欠損のまま扱い、CONFIDENCEへ反映してください。JSON内のsourceは出典確認用です。重要イベントの解釈に追加情報が必要な場合だけWeb検索可とします。
+function normalizeText(value){
+  return String(value || '')
+    .normalize('NFKC')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u200B-\u200D\uFEFF]/g, '');
+}
 
------ MARKET_DATA_START -----
-${JSON.stringify(d,null,2)}
------ MARKET_DATA_END -----
+function parseNum(value){
+  const n = Number(String(value).trim().replace(/,/g,''));
+  return Number.isFinite(n) ? n : null;
+}
 
-【取引ルール】
-・取引対象：日経225マイクロ先物。SBI証券HYPER先物を想定。
-・ナイト開始前に予約発注。新規注文はそのナイト限り。未約定は終了で失効。
-・約定後はOCOのTP/SLで決済。未決済建玉はナイト終了時の引成で全決済し翌日へ持ち越さない。
-・基準価格Sは実際の予約発注時にHTMLへ入力するため、注文値はSからの差で示す。
+function parseMachineReadable(raw){
+  const lines = normalizeText(raw).split('\n').map(x => x.trim()).filter(Boolean);
+  let regime = null;
+  let confidence = null;
+  let vi = null;
+  let inOrders = false;
+  let sawStart = false;
+  let sawEnd = false;
+  const orders = [];
 
-【レジーム判定】
-必ず BOX / TREND_UP / TREND_DOWN / UNCERTAIN の1つに分類し CONFIDENCE 0〜100を付ける。
-日経225先物の直近24〜48時間の高安切上げ/切下げ、DAY/NIGHT方向、ブレイクとレンジ復帰、実現値幅の拡大/縮小を重視する。
-NASDAQ100先物・SOX・NYダウ先物との方向一致、USD/JPYとの整合、VIX・日経平均VIの変化、市場間整合性も評価する。
-BOXは単なる方向不明ではなく、レンジ境界から中央への平均回帰が複数回確認できる場合に限る。方向不明＋ボラ拡大や市場間不一致ならUNCERTAINを優先する。
+  for (const original of lines){
+    const line = original.replace(/，/g, ',').replace(/：/g, ':');
+    const upper = line.toUpperCase();
 
-【注文方式】
-・BOX：すべてLIMIT。BUYはSより下、SELLはSより上。平均回帰狙い。
-・TREND_UP / TREND_DOWN：すべてSTOP。ブレイクアウト/トレンド継続狙い。単純等間隔は禁止。
-・UNCERTAIN：注文数削減、Sから遠ざける、発注見送り可。LIMIT/STOPを混在させる場合は、既存建玉との衝突と取消条件を必ず説明する。
-・BOX/TRENDでは原則BUY ${$('buyN').value}本、SELL ${$('sellN').value}本。
-・TP/SLは一律にせずJSONの直近ボラに合わせる。
-・集中リスクとして逆張りナンピン化、STOP連続約定、最大同時建玉、後続取消、連続SL後取消を評価する。
-・引成価格は事前に推測しない。
+    if (upper === 'ORDER_DATA'){
+      inOrders = true;
+      sawStart = true;
+      continue;
+    }
 
-【回答】
-まず使用データの鮮度・欠損を確認し、BOX支持材料、TREND支持材料、不確実材料、想定ナイト値幅、注文ロジック、集中リスクを説明する。最後に必ず次の機械可読形式を付ける。数値単位は円、桁区切りカンマ禁止。新規値はSからの差、TP/SLは約定価格からの差。
+    if (upper === 'END_ORDER_DATA'){
+      inOrders = false;
+      sawEnd = true;
+      continue;
+    }
 
-REGIME,BOX
-REGIME_CONFIDENCE,75
-ORDER_DATA
-BUY,LIMIT,-200,+250,-300
-SELL,LIMIT,+250,-250,+300
-END_ORDER_DATA
-NIKKEI_VI,24.23
+    if (inOrders){
+      const p = line.split(',').map(x => x.trim());
+      if (p.length !== 5) throw new Error('注文行は5列必要です: ' + original);
 
-LIMITではBUY新規は負、SELL新規は正。STOPではBUYは原則正、SELLは原則負。BUYのTPは正・SLは負、SELLのTPは負・SLは正。日経平均VIがJSONで取得できていなければNIKKEI_VI行は出力しない。`; $('orderPrompt').value=txt;save();}
-function norm(s){return Number(String(s).replace(/[＋+]/g,'').replace(/−/g,'-').replace(/,/g,''))}
-function parseAnswer(){
-  let raw=$('answer').value;
-  $('msg').innerHTML='';
-  let t=raw.normalize('NFKC')
-    .replace(/\r\n?/g,'\n')
-    .replace(/[\u200B-\u200D\uFEFF]/g,'')
-    .replace(/```[a-zA-Z0-9_-]*\s*/g,'')
-    .replace(/```/g,'');
+      const side = p[0].toUpperCase();
+      const type = p[1].toUpperCase();
+      if (side !== 'BUY' && side !== 'SELL') throw new Error('BUY/SELLを解釈できません: ' + original);
+      if (type !== 'LIMIT' && type !== 'STOP') throw new Error('LIMIT/STOPを解釈できません: ' + original);
 
-  let lines=t.split('\n');
-  let normLine=s=>s.trim().replace(/[：:]/g,',').replace(/，/g,',');
-  let marker=s=>normLine(s).toUpperCase();
+      const entry = parseNum(p[2]);
+      const tp = parseNum(p[3]);
+      const sl = parseNum(p[4]);
+      if (entry === null || tp === null || sl === null) throw new Error('注文数値を解釈できません: ' + original);
 
-  let startIdx=lines.findIndex(x=>marker(x)==='ORDER_DATA');
-  let endIdx=startIdx>=0?lines.findIndex((x,i)=>i>startIdx&&marker(x)==='END_ORDER_DATA'):-1;
-  if(startIdx<0||endIdx<0){
-    $('msg').innerHTML='<span class="error">ORDER_DATA ～ END_ORDER_DATA ブロックが見つかりません。AI回答末尾の機械可読部分を含めて貼り付けてください。</span>';
-    return;
+      orders.push({side:side, type:type, entry:entry, tp:tp, sl:sl});
+      continue;
+    }
+
+    let m = line.match(/^REGIME\s*,\s*(BOX|TREND_UP|TREND_DOWN|UNCERTAIN)$/i);
+    if (m){ regime = m[1].toUpperCase(); continue; }
+
+    m = line.match(/^REGIME_CONFIDENCE\s*,\s*(\d+(?:\.\d+)?)$/i);
+    if (m){ confidence = Number(m[1]); continue; }
+
+    m = line.match(/^NIKKEI_VI\s*,\s*(\d+(?:\.\d+)?)$/i);
+    if (m){ vi = Number(m[1]); continue; }
   }
 
-  let headTail=lines.slice(0,startIdx).concat(lines.slice(endIdx+1)).join('\n');
-  let rm=headTail.match(/^\s*REGIME\s*[,，:]\s*(BOX|TREND_UP|TREND_DOWN|UNCERTAIN)\s*$/im);
-  let cm=headTail.match(/^\s*REGIME_CONFIDENCE\s*[,，:]\s*(\d+(?:\.\d+)?)\s*$/im);
-  let vm=headTail.match(/^\s*NIKKEI_VI\s*[,，:]\s*(\d+(?:\.\d+)?)\s*$/im);
-  let regime=rm?rm[1].toUpperCase():'UNKNOWN';
-  let confidence=cm?Number(cm[1]):null;
-  if(confidence!=null&&(confidence<0||confidence>100))confidence=null;
-  if(vm&&Number.isFinite(Number(vm[1])))$('vi').value=vm[1];
+  if (!sawStart || !sawEnd) throw new Error('ORDER_DATA ～ END_ORDER_DATA ブロックが見つかりません。');
+  if (!regime) throw new Error('REGIME 行が見つかりません。');
+  if (confidence !== null && (confidence < 0 || confidence > 100)) throw new Error('REGIME_CONFIDENCE は0～100で指定してください。');
+  if (orders.length === 0 && regime !== 'UNCERTAIN') throw new Error('注文が0本です。UNCERTAIN以外では注文行が必要です。');
 
-  let arr=[],bad=[];
-  lines.slice(startIdx+1,endIdx).forEach((line,idx)=>{
-    let s=line.trim();
-    if(!s)return;
-    let p=s.split(/\s*[,，\t]\s*/);
-    if(p.length<5||!/^(BUY|SELL)$/i.test(p[0])||!/^(LIMIT|STOP)$/i.test(p[1])){bad.push(idx+1);return}
-    let o={side:p[0].toUpperCase(),type:p[1].toUpperCase(),entry:norm(p[2]),tp:norm(p[3]),sl:norm(p[4])};
-    if(![o.entry,o.tp,o.sl].every(Number.isFinite)){bad.push(idx+1);return}
-    arr.push(o);
+  return {regime:regime, confidence:confidence, vi:vi, orders:orders};
+}
+
+function erf(x){
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x);
+  const a1=.254829592,a2=-.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=.3275911;
+  const t=1/(1+p*x);
+  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+
+function phi(x){
+  return .5*(1+erf(x/Math.sqrt(2)));
+}
+
+let currentResult = null;
+
+function render(result){
+  currentResult = result;
+
+  const S = parseNum($('spot').value) || 0;
+  const qty = parseNum($('qty').value) || 1;
+  const viPct = parseNum($('vi').value) || 0;
+  const h = parseNum($('hours').value) || 0;
+  const dy = parseNum($('daysYear').value) || 252;
+  const dh = parseNum($('dayHours').value) || 24;
+  const sigma = S*(viPct/100)/Math.sqrt(dy)*Math.sqrt(h/dh);
+
+  $('regime').textContent = result.regime;
+  $('confidence').textContent = result.confidence === null ? '—' : result.confidence + '%';
+  $('maxPos').textContent = (result.orders.length * qty) + '枚';
+  $('sigma').textContent = Math.round(sigma).toLocaleString('ja-JP') + '円';
+
+  let profit = 0;
+  let loss = 0;
+  let buyNo = 0;
+  let sellNo = 0;
+
+  const rows = result.orders.map(function(o){
+    const no = o.side === 'BUY' ? ++buyNo : ++sellNo;
+    const entry = S + o.entry;
+    const tp = entry + o.tp;
+    const sl = entry + o.sl;
+
+    const tpPnl = (o.side === 'BUY' ? tp-entry : entry-tp) * 10 * qty;
+    const slPnl = (o.side === 'BUY' ? sl-entry : entry-sl) * 10 * qty;
+    const risk = -slPnl;
+    profit += tpPnl;
+    loss += risk;
+
+    const z = sigma > 0 ? Math.abs(o.entry)/sigma : 0;
+    const hit = sigma > 0 ? Math.min(1,2*(1-phi(z))) : 0;
+
+    return '<tr>' +
+      '<td class="' + (o.side === 'BUY' ? 'buy' : 'sell') + '">' + (o.side === 'BUY' ? '買' : '売') + ' ' + no + '</td>' +
+      '<td><span class="pill">' + o.type + '</span></td>' +
+      '<td>' + entry.toLocaleString('ja-JP') + '</td>' +
+      '<td>' + tp.toLocaleString('ja-JP') + '</td>' +
+      '<td>' + sl.toLocaleString('ja-JP') + '</td>' +
+      '<td>' + qty + '</td>' +
+      '<td class="buy">' + yen(tpPnl) + '</td>' +
+      '<td class="sell">-' + yen(risk) + '</td>' +
+      '<td>' + z.toFixed(2) + 'σ</td>' +
+      '<td><div>' + (hit*100).toFixed(1) + '%</div><div class="bar"><i style="width:' + (hit*100) + '%"></i></div></td>' +
+      '</tr>';
   });
 
-  if(bad.length){$('msg').innerHTML='<span class="error">注文行 '+bad.join(', ')+' を解釈できません。side,type,entry,tp,sl の5列を確認してください。</span>';return}
-  if(!rm){$('msg').innerHTML='<span class="error">REGIME 行が見つかりません。</span>';return}
-  if(!arr.length&&regime!=='UNCERTAIN'){$('msg').innerHTML='<span class="error">注文が0本です。0本を許容するのは UNCERTAIN の発注見送り時だけです。</span>';return}
-
-  localStorage.setItem('orders',JSON.stringify(arr));
-  localStorage.setItem('regime',regime);
-  localStorage.setItem('regimeConfidence',confidence==null?'':String(confidence));
-  render(arr,regime,confidence);
-  $('msg').innerHTML=`<span class="success">正常に解析しました。レジーム ${regime}${confidence==null?'':' / 確信度 '+confidence+'%'}、${arr.length}本の注文を読み取りました。${vm?' 日経VI '+vm[1]+'%。':''}</span>`;
-  save();
+  $('orders').innerHTML = rows.length ? rows.join('') : '<tr><td colspan="10" style="text-align:center;color:var(--muted)">注文なし</td></tr>';
+  $('maxProfit').textContent = yen(profit);
+  $('maxLoss').textContent = '-' + yen(loss);
 }
-function erf(x){let s=x<0?-1:1;x=Math.abs(x);let a1=.254829592,a2=-.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=.3275911,t=1/(1+p*x);let y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);return s*y}
-function phi(x){return .5*(1+erf(x/Math.sqrt(2)))}
-function render(arr,regime=localStorage.getItem('regime')||'UNKNOWN',confidence=Number(localStorage.getItem('regimeConfidence')||NaN)){let S=+$('spot').value,vi=+$('vi').value/100,h=+$('hours').value,dh=+$('dayHours').value,dy=+$('daysYear').value,qty=+$('qty').value; let sigma=S*vi/Math.sqrt(dy)*Math.sqrt(h/dh); let profit=0,loss=0; $('regime').textContent=regime; $('confidence').textContent=Number.isFinite(confidence)?confidence+'%':'—'; $('sigma').textContent=Math.round(sigma).toLocaleString()+'円'; $('maxPos').textContent=(arr.length*qty)+'枚'; let buyNo=0,sellNo=0;let rows=arr.map(o=>{let no=o.side==='BUY'?++buyNo:++sellNo;let entry=S+o.entry,tp=entry+o.tp,sl=entry+o.sl;let tpPnl=(o.side==='BUY'?tp-entry:entry-tp)*10*qty;let slPnl=(o.side==='BUY'?sl-entry:entry-sl)*10*qty;let pr=tpPnl,lo=-slPnl;profit+=pr;loss+=lo;let z=Math.abs(o.entry)/(sigma||1);let hit=Math.min(1,2*(1-phi(z)));return `<tr><td class="${o.side==='BUY'?'buy':'sell'}">${o.side==='BUY'?'買':'売'} ${no}</td><td><span class="pill">${o.type||'LIMIT'}</span></td><td>${entry.toLocaleString()}</td><td>${tp.toLocaleString()}</td><td>${sl.toLocaleString()}</td><td>${qty}</td><td class="buy">${yen(pr)}</td><td class="sell">-${yen(lo)}</td><td>${z.toFixed(2)}σ</td><td><div>${(hit*100).toFixed(1)}%</div><div class="bar"><i style="width:${hit*100}%"></i></div></td></tr>`}).join('');$('orders').innerHTML=rows||'<tr><td colspan="10" style="text-align:center;color:var(--muted)">注文なし（UNCERTAIN / 発注見送りを含む）</td></tr>';$('maxProfit').textContent=yen(profit);$('maxLoss').textContent='-'+yen(loss)}
-function copyText(id){navigator.clipboard.writeText($(id).value);}
-function loadSample(){$('answer').value=`市場分析サンプル
-REGIME,TREND_UP
-REGIME_CONFIDENCE,82
-NIKKEI_VI,24.23
-ORDER_DATA
-BUY,STOP,+200,+350,-250
-BUY,STOP,+400,+450,-300
-BUY,STOP,+650,+500,-350
-BUY,STOP,+900,+600,-400
-BUY,STOP,+1200,+700,-450
-SELL,STOP,-350,-350,+250
-SELL,STOP,-600,-450,+300
-SELL,STOP,-850,-550,+350
-SELL,STOP,-1150,-650,+400
-SELL,STOP,-1500,-800,+450
-END_ORDER_DATA`;parseAnswer()}
-function save(){let d={days:$('days').value,spot:$('spot').value,buyN:$('buyN').value,sellN:$('sellN').value,qty:$('qty').value,vi:$('vi').value,hours:$('hours').value,aiName:$('aiName').value,answer:$('answer').value,marketJson:$('marketJson').value,checks:selected()};localStorage.setItem('mfLab',JSON.stringify(d))}
-function load(){try{let d=JSON.parse(localStorage.getItem('mfLab'));if(d){['days','spot','buyN','sellN','qty','vi','hours','aiName','answer','marketJson'].forEach(k=>{if(d[k]!=null)$(k).value=d[k]});if(d.checks)document.querySelectorAll('#checks input').forEach(x=>x.checked=d.checks.includes(x.value))}let o=JSON.parse(localStorage.getItem('orders'));if(o)render(o,localStorage.getItem('regime')||'UNKNOWN',Number(localStorage.getItem('regimeConfidence')||NaN))}catch(e){}}
-function clearAll(){localStorage.removeItem('mfLab');localStorage.removeItem('orders');localStorage.removeItem('regime');localStorage.removeItem('regimeConfidence');location.reload()}
-$('jsonFile').addEventListener('change',e=>{let f=e.target.files[0];if(!f)return;let r=new FileReader();r.onload=()=>{$('marketJson').value=r.result;validateMarketJson();save()};r.readAsText(f)});document.addEventListener('input',e=>{if(['spot','qty','vi','hours','daysYear','dayHours'].includes(e.target.id)){let o=JSON.parse(localStorage.getItem('orders')||'null');if(o)render(o)} if(e.target.closest('#checks')||['days'].includes(e.target.id))makeResearchPrompt(); if(['buyN','sellN'].includes(e.target.id)&&$('marketJson').value.trim())makeOrderPrompt();save()});init();
+
+function resetResult(){
+  currentResult = null;
+  $('regime').textContent = '—';
+  $('confidence').textContent = '—';
+  $('maxPos').textContent = '—';
+  $('maxProfit').textContent = '—';
+  $('maxLoss').textContent = '—';
+  $('sigma').textContent = '—';
+  $('orders').innerHTML = '<tr><td colspan="10" style="text-align:center;color:var(--muted)">AI回答を解析すると表示されます</td></tr>';
+}
+
+function parseAnswer(){
+  $('msg').textContent = '';
+  resetResult();
+
+  try{
+    const result = parseMachineReadable($('answer').value);
+    if (result.vi !== null) $('vi').value = result.vi;
+    render(result);
+    $('msg').innerHTML = '<span class="success">正常に解析しました。レジーム ' + result.regime + (result.confidence===null ? '' : ' / 確信度 ' + result.confidence + '%') + '、' + result.orders.length + '本の注文を読み取りました。</span>';
+  }catch(e){
+    $('msg').innerHTML = '<span class="error">' + e.message + '</span>';
+  }
+}
+
+function setChecks(v){
+  document.querySelectorAll('#checks input').forEach(function(x){x.checked=v;});
+  makeResearchPrompt();
+}
+
+function makeResearchPrompt(){
+  const sy = selected();
+  const txt =
+'あなたは市場データ収集担当です。投資判断、相場予測、レジーム判定、注文提案は行わないでください。\n\n' +
+'Web上の最新情報を検索し、過去' + $('days').value + '日について次の市場を調査してください。\n' +
+sy.map(x => '・' + x).join('\n') +
+'\n\n【収集ルール】\n' +
+'・取得値を推測しない。取得できない値は null とする。\n' +
+'・先物は可能な限り商品名と限月を特定し、現物・先物・CFDを混同しない。\n' +
+'・各値のデータ時点、タイムゾーン、取得時刻 retrieved_at、source URLを記録する。\n' +
+'・日経225先物は可能な限りDAY/NIGHTを分離し、OHLCを収集する。\n' +
+'・現在値、期間始値・高値・安値、各日のOHLC、直近24〜48時間の値動きを収集する。\n' +
+'・VIX、日経平均VI、NASDAQ100先物、SOX指数、USD/JPYを特に重視する。\n' +
+'・異なる情報源で値が食い違う場合、解消不能なら null として notes に理由を書く。\n' +
+'・重要イベントは価格データと分離して events 配列に保存する。\n' +
+'・数字の意味付けや売買判断はしない。\n' +
+'・JSON以外の文章、Markdownコードフェンスを出力しない。';
+  $('researchPrompt').value = txt;
+}
+
+function validateMarketJson(){
+  try{
+    const d = JSON.parse($('marketJson').value);
+    if (!d || typeof d !== 'object' || !d.markets) throw new Error('markets がありません');
+    $('jsonMsg').innerHTML = '<span class="success">JSONを読み取りました。取得時刻: ' + (d.retrieved_at || '不明') + '</span>';
+    return d;
+  }catch(e){
+    $('jsonMsg').innerHTML = '<span class="error">JSONエラー: ' + e.message + '</span>';
+    return null;
+  }
+}
+
+function makeOrderPrompt(){
+  const d = validateMarketJson();
+  if (!d) return;
+
+  const txt =
+'日経225マイクロ先物について、次回ナイトセッション開始前に予約発注するIFD-OCO注文案を作成してください。\n\n' +
+'【最重要：市場データ】\n' +
+'以下のJSONを市場価格データの唯一の入力として使用してください。価格・指数・為替についてWeb検索で補完、置換、推測しないでください。nullや欠損は欠損のまま扱い、CONFIDENCEへ反映してください。\n\n' +
+'----- MARKET_DATA_START -----\n' +
+JSON.stringify(d,null,2) +
+'\n----- MARKET_DATA_END -----\n\n' +
+'【取引ルール】\n' +
+'・取引対象：日経225マイクロ先物。SBI証券HYPER先物を想定。\n' +
+'・ナイト開始前に予約発注。新規注文はそのナイト限り。未約定は終了で失効。\n' +
+'・約定後はOCOのTP/SLで決済。未決済建玉はナイト終了時の引成で全決済し翌日へ持ち越さない。\n' +
+'・基準価格Sは実際の予約発注時にHTMLへ入力するため、注文値はSからの差で示す。\n\n' +
+'【レジーム判定】\n' +
+'必ず BOX / TREND_UP / TREND_DOWN / UNCERTAIN の1つに分類し CONFIDENCE 0〜100を付ける。\n' +
+'日経225先物の直近24〜48時間の高安切上げ/切下げ、DAY/NIGHT方向、ブレイクとレンジ復帰、実現値幅の拡大/縮小を重視する。\n' +
+'NASDAQ100先物・SOX・NYダウ先物との方向一致、USD/JPYとの整合、VIX・日経平均VIの変化、市場間整合性も評価する。\n\n' +
+'【注文方式】\n' +
+'・BOX：すべてLIMIT。\n' +
+'・TREND_UP / TREND_DOWN：すべてSTOP。\n' +
+'・UNCERTAIN：注文数削減、Sから遠ざける、発注見送り可。\n' +
+'・BOX/TRENDでは原則BUY ' + $('buyN').value + '本、SELL ' + $('sellN').value + '本。\n' +
+'・TP/SLは一律にせずJSONの直近ボラに合わせる。\n' +
+'・引成価格は事前に推測しない。\n\n' +
+'【回答】\n' +
+'説明の最後に必ず次の機械可読形式を付ける。\n' +
+'数値単位は円。新規値はSからの差、TP/SLは約定価格からの差。\n\n' +
+'REGIME,TREND_UP\n' +
+'REGIME_CONFIDENCE,72\n' +
+'ORDER_DATA\n' +
+'BUY,STOP,+180,+260,-220\n' +
+'SELL,STOP,-420,-280,+240\n' +
+'END_ORDER_DATA\n' +
+'NIKKEI_VI,26.56';
+
+  $('orderPrompt').value = txt;
+}
+
+function copyText(id){
+  navigator.clipboard.writeText($(id).value);
+}
+
+function loadSample(){
+  $('answer').value =
+'REGIME,TREND_UP\n' +
+'REGIME_CONFIDENCE,72\n' +
+'ORDER_DATA\n' +
+'BUY,STOP,+180,+260,-220\n' +
+'BUY,STOP,+340,+320,-250\n' +
+'BUY,STOP,+560,+390,-300\n' +
+'BUY,STOP,+820,+480,-360\n' +
+'BUY,STOP,+1150,+600,-450\n' +
+'SELL,STOP,-420,-280,+240\n' +
+'SELL,STOP,-650,-340,+280\n' +
+'SELL,STOP,-900,-420,+340\n' +
+'SELL,STOP,-1200,-520,+420\n' +
+'SELL,STOP,-1500,-650,+500\n' +
+'END_ORDER_DATA\n' +
+'NIKKEI_VI,26.56';
+  parseAnswer();
+}
+
+function clearAll(){
+  $('answer').value = '';
+  $('marketJson').value = '';
+  $('orderPrompt').value = '';
+  $('jsonMsg').textContent = '';
+  $('msg').textContent = '';
+  resetResult();
+}
+
+function bind(){
+  $('jsonFile').addEventListener('change', function(e){
+    const file=e.target.files[0];
+    if(!file)return;
+    const r=new FileReader();
+    r.onload=function(){
+      $('marketJson').value=r.result;
+      validateMarketJson();
+    };
+    r.readAsText(file);
+  });
+
+  ['spot','qty','vi','hours','daysYear','dayHours'].forEach(function(id){
+    $(id).addEventListener('input', function(){
+      if(currentResult) render(currentResult);
+    });
+  });
+
+  $('days').addEventListener('input', makeResearchPrompt);
+}
+
+function init(){
+  initChecks();
+  bind();
+  makeResearchPrompt();
+}
+
+init();
 </script></body></html>

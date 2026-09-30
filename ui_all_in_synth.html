@@ -37,8 +37,17 @@ canvas{width:100%;background:#0b0d11;border:1px solid var(--line);border-radius:
 .xyDot{position:absolute;width:18px;height:18px;border-radius:50%;background:var(--accent2);transform:translate(-50%,-50%);box-shadow:0 0 18px #f7b95580}
 .keyboard{display:flex;height:150px;user-select:none;overflow-x:auto;padding-bottom:4px}
 .key{position:relative;flex:1;min-width:42px;border:1px solid #111;border-radius:0 0 6px 6px;cursor:pointer}.white{background:#f4f4f4}.black{background:#171717;width:28px;min-width:28px;height:95px;margin-left:-14px;margin-right:-14px;z-index:2;flex:0 0 28px}.key.active{background:var(--accent2)}
-.padGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.pad{aspect-ratio:1;border:1px solid var(--line);border-radius:12px;background:#11151b;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}.pad.on,.pad:active{background:#31566f}
-.steps{display:grid;grid-template-columns:repeat(16,1fr);gap:5px}.step{aspect-ratio:1;border:1px solid #3b424c;border-radius:5px;background:#101318;cursor:pointer}.step.on{background:#3d6c89}.step.play{outline:2px solid var(--accent2)}
+.padGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.pad{min-height:86px;border:1px solid var(--line);border-radius:12px;background:#11151b;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:12px;cursor:pointer;touch-action:none;position:relative;overflow:hidden}
+.pad strong{font-size:15px}.pad em{font-style:normal;color:var(--muted);font-size:10px}.pad .velShade{position:absolute;left:0;right:0;bottom:0;height:0;background:#31566f55;pointer-events:none}.pad.selected{outline:2px solid var(--accent)}.pad.on,.pad:active{background:#31566f}
+.padTools,.stepTools{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}
+.padTools .col,.stepTools .col{min-width:0}
+.steps{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.step{min-height:72px;border:1px solid #3b424c;border-radius:8px;background:#101318;cursor:pointer;padding:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;user-select:none}
+.step.on{background:#274457}.step.selected{outline:2px solid var(--accent)}.step.play{box-shadow:0 0 0 2px var(--accent2),0 0 18px #f7b95555}
+.step .num{position:absolute;top:4px;left:6px;font-size:9px;color:#7e8895}.step .note{font-weight:700;font-size:12px}.step .meta{font-size:9px;color:var(--muted)}
+.step .accent{color:var(--accent2)}.step .tie{color:#b69cff}.step .prob{position:absolute;left:0;bottom:0;height:3px;background:var(--accent);border-radius:0 0 0 8px}
+@media(max-width:700px){.steps{grid-template-columns:repeat(4,1fr)}.padTools,.stepTools{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .meter{height:10px;background:#0d0f12;border-radius:20px;overflow:hidden;border:1px solid var(--line)}.meter>div{height:100%;width:0;background:linear-gradient(90deg,#76d98b,#efd367,#ff7b7b)}
 hr{border:none;border-top:1px solid var(--line);margin:12px 0}.badge{padding:4px 8px;border:1px solid var(--line);border-radius:20px;font-size:11px;color:var(--muted)}
 </style>
@@ -112,18 +121,54 @@ hr{border:none;border-top:1px solid var(--line);margin:12px 0}.badge{padding:4px
 <section class="panel c7"><h2>XY PAD</h2><div id="xy" class="xy"><div id="xyDot" class="xyDot" style="left:50%;top:50%"></div></div><div class="small">X = filter cutoff / Y = resonance</div></section>
 
 <section class="panel c8"><h2>KEYBOARD</h2><div id="keyboard" class="keyboard"></div></section>
-<section class="panel c4"><h2>PADS</h2><div class="padGrid" id="pads"></div></section>
+
+<section class="panel c4">
+<h2>PERFORMANCE PADS</h2>
+<div class="row">
+  <span class="badge" id="padSelectedLabel">PAD 1</span>
+  <label class="switch"><input id="padLatchMode" type="checkbox"><span></span></label><span class="small">Latch</span>
+  <button id="padAllOff">All Off</button>
+</div>
+<div class="padGrid" id="pads"></div>
+<div class="padTools">
+  <div class="col"><label>Pad note</label><input id="padMidi" type="number" min="24" max="96" value="36"></div>
+  <div class="col"><label>Chord</label><select id="padChord"><option value="single">Single</option><option value="fifth">5th</option><option value="octave">Octave</option><option value="major">Major</option><option value="minor">Minor</option><option value="maj7">Maj7</option><option value="min7">Min7</option></select></div>
+  <div class="col"><label>Velocity <span id="padVelV">0.80</span></label><input id="padVelocity" type="range" min="0.10" max="1" step="0.05" value="0.80"></div>
+  <div class="col"><label>Gate (s) <span id="padGateV">0.25</span></label><input id="padGate" type="range" min="0.05" max="2" step="0.05" value="0.25"></div>
+</div>
+<div class="row" style="margin-top:8px">
+  <button id="padTransposeDown">-12</button><button id="padTransposeUp">+12</button>
+  <button id="padMajorLayout">Major layout</button><button id="padChromaticLayout">Chromatic</button>
+</div>
+<div class="small">Pad上部を叩くほど強く発音。Latch ONでは再タップまで保持。Padを選択すると下のエディタで音程・和音・音量・長さを変更できます。</div>
+</section>
 
 <section class="panel c8">
-<h2>STEP SEQUENCER</h2>
+<h2>STEP SEQUENCER PRO</h2>
 <div class="row">
-<button id="seqPlay">▶ Play</button><button id="seqStop">■ Stop</button>
+<button id="seqPlay">▶ Play</button><button id="seqStop">■ Stop</button><button id="seqClear">Clear</button><button id="seqRandom">Random</button>
 <div class="col"><label>BPM</label><input id="bpm" type="number" min="40" max="240" value="120"></div>
-<div class="col"><label>Gate</label><input id="gate" type="range" min="0.05" max="0.95" step="0.05" value="0.55"></div>
+<div class="col"><label>Swing <span id="swingV">0%</span></label><input id="swing" type="range" min="0" max="60" step="1" value="0"></div>
+<div class="col"><label>Length</label><input id="seqLength" type="number" min="1" max="16" value="16"></div>
+<div class="col"><label>Direction</label><select id="seqDirection"><option value="forward">Forward</option><option value="reverse">Reverse</option><option value="pingpong">Ping-pong</option><option value="random">Random</option></select></div>
 </div>
 <div class="steps" id="steps"></div>
-<h3>Pattern preset</h3>
-<select id="pattern"><option value="manual">Manual</option><option value="four">Four on floor</option><option value="offbeat">Offbeat</option><option value="euclid">Euclid-ish</option></select>
+<div class="stepTools">
+  <div class="col"><label>Step note</label><input id="stepMidi" type="number" min="24" max="96" value="48"></div>
+  <div class="col"><label>Velocity <span id="stepVelV">0.70</span></label><input id="stepVelocity" type="range" min="0.05" max="1" step="0.05" value="0.70"></div>
+  <div class="col"><label>Gate <span id="stepGateV">55%</span></label><input id="stepGate" type="range" min="0.05" max="1.8" step="0.05" value="0.55"></div>
+  <div class="col"><label>Probability <span id="stepProbV">100%</span></label><input id="stepProb" type="range" min="0" max="1" step="0.05" value="1"></div>
+  <div class="col"><label>Ratchet</label><select id="stepRatchet"><option>1</option><option>2</option><option>3</option><option>4</option></select></div>
+  <div class="col"><label>Accent</label><input id="stepAccent" type="checkbox"></div>
+  <div class="col"><label>Tie</label><input id="stepTie" type="checkbox"></div>
+  <div class="col"><label>Transpose</label><div class="row"><button id="seqTransposeDown">-12</button><button id="seqTransposeUp">+12</button></div></div>
+</div>
+<div class="row" style="margin-top:8px">
+<label>Pattern</label>
+<select id="pattern"><option value="manual">Manual</option><option value="four">Four on floor</option><option value="offbeat">Offbeat</option><option value="euclid">Euclid-ish</option><option value="scaleup">Scale up</option><option value="arp">Arpeggio</option></select>
+<span class="badge" id="stepSelectedLabel">STEP 1</span>
+</div>
+<div class="small">各ステップに音程・Velocity・Gate・発音確率・Ratchet・Accent・Tieを保持。クリックで選択、ダブルクリックでON/OFF。</div>
 </section>
 
 <section class="panel c4">
@@ -239,23 +284,121 @@ notes.forEach(m=>{const key=document.createElement("div");key.className="key "+(
 const keyMap={a:60,w:61,s:62,e:63,d:64,f:65,t:66,g:67,y:68,h:69,u:70,j:71,k:72};
 addEventListener("keydown",e=>{if(e.repeat||!keyMap[e.key])return;startNote(keyMap[e.key])});addEventListener("keyup",e=>{if(!keyMap[e.key])return;stopNote(keyMap[e.key])});
 
-const padNotes=[36,38,40,43,48,50,52,55,60,62,64,67,72,74,76,79];
-padNotes.forEach((m,i)=>{const p=document.createElement("div");p.className="pad";p.textContent="PAD "+(i+1);p.onpointerdown=()=>{p.classList.add("on");startNote(m,.8,.18)};p.onpointerup=()=>p.classList.remove("on");$("pads").appendChild(p)});
+const noteNames=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+function midiName(m){return noteNames[((m%12)+12)%12]+(Math.floor(m/12)-1)}
+const chordMap={single:[0],fifth:[0,7],octave:[0,12],major:[0,4,7],minor:[0,3,7],maj7:[0,4,7,11],min7:[0,3,7,10]};
+
+/* PERFORMANCE PADS */
+let selectedPad=0;
+const padConfigs=Array.from({length:16},(_,i)=>({
+  midi:[36,38,40,43,48,50,52,55,60,62,64,67,72,74,76,79][i],
+  chord:"single",velocity:.8,gate:.25,latched:false
+}));
+const padEls=[];
+function padNotesFor(cfg){return chordMap[cfg.chord].map(n=>cfg.midi+n)}
+function renderPad(i){
+  const p=padEls[i],cfg=padConfigs[i];
+  p.classList.toggle("selected",i===selectedPad);p.classList.toggle("on",cfg.latched);
+  p.innerHTML='<div class="velShade"></div><strong>'+midiName(cfg.midi)+'</strong><em>PAD '+(i+1)+' · '+cfg.chord+'</em>';
+}
+function syncPadEditor(){
+  const cfg=padConfigs[selectedPad];$("padSelectedLabel").textContent="PAD "+(selectedPad+1);
+  $("padMidi").value=cfg.midi;$("padChord").value=cfg.chord;$("padVelocity").value=cfg.velocity;$("padGate").value=cfg.gate;
+  $("padVelV").textContent=cfg.velocity.toFixed(2);$("padGateV").textContent=cfg.gate.toFixed(2);
+  padEls.forEach((_,i)=>renderPad(i));
+}
+function triggerPad(i,velocityScale=1){
+  const cfg=padConfigs[i],notes=padNotesFor(cfg),vel=Math.max(.05,Math.min(1,cfg.velocity*velocityScale));
+  if($("padLatchMode").checked){
+    if(cfg.latched){notes.forEach(n=>stopNote(n));cfg.latched=false}
+    else{notes.forEach(n=>startNote(n,vel));cfg.latched=true}
+  }else notes.forEach(n=>startNote(n,vel,cfg.gate));
+  renderPad(i)
+}
+for(let i=0;i<16;i++){
+  const p=document.createElement("div");p.className="pad";p.dataset.i=i;
+  p.onpointerdown=e=>{
+    selectedPad=i;syncPadEditor();const r=p.getBoundingClientRect();const y=(e.clientY-r.top)/r.height;
+    const velocityScale=.35+(1-Math.max(0,Math.min(1,y)))*.65;
+    const shade=p.querySelector(".velShade");if(shade)shade.style.height=Math.round(velocityScale*100)+"%";
+    triggerPad(i,velocityScale)
+  };
+  p.onpointerup=p.onpointerleave=()=>{const s=p.querySelector(".velShade");if(s)s.style.height="0%"};
+  $("pads").appendChild(p);padEls.push(p);renderPad(i)
+}
+["padMidi","padChord","padVelocity","padGate"].forEach(id=>$(id).addEventListener("input",()=>{
+  const cfg=padConfigs[selectedPad];cfg.midi=parseInt($("padMidi").value);cfg.chord=$("padChord").value;cfg.velocity=val("padVelocity");cfg.gate=val("padGate");syncPadEditor()
+}));
+$("padAllOff").onclick=()=>{padConfigs.forEach((cfg,i)=>{if(cfg.latched)padNotesFor(cfg).forEach(n=>stopNote(n));cfg.latched=false;renderPad(i)});panic()};
+$("padTransposeDown").onclick=()=>{padConfigs.forEach(c=>c.midi=Math.max(24,c.midi-12));syncPadEditor()};
+$("padTransposeUp").onclick=()=>{padConfigs.forEach(c=>c.midi=Math.min(96,c.midi+12));syncPadEditor()};
+$("padChromaticLayout").onclick=()=>{padConfigs.forEach((c,i)=>{c.midi=48+i;c.chord="single"});syncPadEditor()};
+$("padMajorLayout").onclick=()=>{const scale=[0,2,4,5,7,9,11,12,14,16,17,19,21,23,24,26];padConfigs.forEach((c,i)=>{c.midi=48+scale[i];c.chord="single"});syncPadEditor()};
+syncPadEditor();
 
 const xy=$("xy"),dot=$("xyDot");
 function xyMove(e){const r=xy.getBoundingClientRect(),x=Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y=Math.max(0,Math.min(1,(e.clientY-r.top)/r.height));dot.style.left=x*100+"%";dot.style.top=y*100+"%";$("cutoff").value=80+Math.pow(x,2)*11920;$("res").value=.1+(1-y)*19.9;$("cutoff").dispatchEvent(new Event("input"));$("res").dispatchEvent(new Event("input"))}
 xy.onpointerdown=e=>{xy.setPointerCapture(e.pointerId);xyMove(e)};xy.onpointermove=e=>{if(xy.hasPointerCapture(e.pointerId))xyMove(e)};
 
+/* STEP SEQUENCER PRO */
+let selectedStep=0,seqPingDir=1;
+const stepData=Array.from({length:16},(_,i)=>({on:i%4===0,midi:48+[0,2,4,7][i%4],velocity:.7,gate:.55,prob:1,ratchet:1,accent:false,tie:false}));
 const stepEls=[];
-for(let i=0;i<16;i++){const s=document.createElement("div");s.className="step";s.onclick=()=>s.classList.toggle("on");$("steps").appendChild(s);stepEls.push(s)}
-function setPattern(type){stepEls.forEach(s=>s.classList.remove("on"));let arr=[];if(type==="four")arr=[0,4,8,12];if(type==="offbeat")arr=[2,6,10,14];if(type==="euclid")arr=[0,3,5,8,11,13];arr.forEach(i=>stepEls[i].classList.add("on"))}
+function renderStep(i){
+  const s=stepEls[i],d=stepData[i];if(!s)return;
+  s.classList.toggle("on",d.on);s.classList.toggle("selected",i===selectedStep);
+  s.innerHTML='<span class="num">'+(i+1)+'</span><span class="note">'+midiName(d.midi)+'</span><span class="meta">'+Math.round(d.velocity*100)+'% · x'+d.ratchet+' '+(d.accent?'<b class="accent">ACC</b> ':'')+(d.tie?'<b class="tie">TIE</b>':'')+'</span><span class="prob" style="width:'+Math.round(d.prob*100)+'%"></span>';
+}
+function syncStepEditor(){
+ const d=stepData[selectedStep];$("stepSelectedLabel").textContent="STEP "+(selectedStep+1);$("stepMidi").value=d.midi;$("stepVelocity").value=d.velocity;$("stepGate").value=d.gate;$("stepProb").value=d.prob;$("stepRatchet").value=d.ratchet;$("stepAccent").checked=d.accent;$("stepTie").checked=d.tie;
+ $("stepVelV").textContent=d.velocity.toFixed(2);$("stepGateV").textContent=Math.round(d.gate*100)+"%";$("stepProbV").textContent=Math.round(d.prob*100)+"%";stepEls.forEach((_,i)=>renderStep(i))
+}
+for(let i=0;i<16;i++){
+ const s=document.createElement("div");s.className="step";s.onclick=()=>{selectedStep=i;syncStepEditor()};s.ondblclick=()=>{stepData[i].on=!stepData[i].on;renderStep(i)};$("steps").appendChild(s);stepEls.push(s);renderStep(i)
+}
+["stepMidi","stepVelocity","stepGate","stepProb","stepRatchet","stepAccent","stepTie"].forEach(id=>{
+ const ev=(id==="stepAccent"||id==="stepTie")?"change":"input";
+ $(id).addEventListener(ev,()=>{const d=stepData[selectedStep];d.midi=parseInt($("stepMidi").value);d.velocity=val("stepVelocity");d.gate=val("stepGate");d.prob=val("stepProb");d.ratchet=parseInt($("stepRatchet").value);d.accent=$("stepAccent").checked;d.tie=$("stepTie").checked;syncStepEditor()})
+});
+$("swing").oninput=()=>$("swingV").textContent=Math.round(val("swing"))+"%";
+function setPattern(type){
+ stepData.forEach((d,i)=>{d.on=false;d.accent=false;d.tie=false;d.prob=1;d.ratchet=1});
+ if(type==="four")[0,4,8,12].forEach(i=>stepData[i].on=true);
+ if(type==="offbeat")[2,6,10,14].forEach(i=>stepData[i].on=true);
+ if(type==="euclid")[0,3,5,8,11,13].forEach(i=>stepData[i].on=true);
+ if(type==="scaleup"){const sc=[0,2,4,5,7,9,11,12];stepData.forEach((d,i)=>{d.on=true;d.midi=48+sc[i%8]+(i>=8?12:0)})}
+ if(type==="arp"){const ar=[0,4,7,12];stepData.forEach((d,i)=>{d.on=true;d.midi=48+ar[i%4];d.accent=i%4===0})}
+ syncStepEditor()
+}
 $("pattern").onchange=()=>setPattern($("pattern").value);
-$("seqPlay").onclick=()=>{
- ensureAudio();clearInterval(seqTimer);seqIndex=0;
- const tick=()=>{stepEls.forEach(s=>s.classList.remove("play"));const s=stepEls[seqIndex];s.classList.add("play");if(s.classList.contains("on")){const dur=(60/val("bpm"))/4*val("gate");startNote(48+(seqIndex%4)*2,.65,dur)}seqIndex=(seqIndex+1)%16};
- tick();seqTimer=setInterval(tick,(60/val("bpm"))*1000/4)
-};
-$("seqStop").onclick=()=>{clearInterval(seqTimer);seqTimer=null;stepEls.forEach(s=>s.classList.remove("play"))};
+$("seqClear").onclick=()=>{stepData.forEach(d=>d.on=false);syncStepEditor()};
+$("seqRandom").onclick=()=>{stepData.forEach((d,i)=>{d.on=Math.random()>.4;d.midi=48+[0,2,3,5,7,8,10,12][Math.floor(Math.random()*8)];d.velocity=.4+Math.random()*.6;d.prob=.5+Math.random()*.5;d.ratchet=1+Math.floor(Math.random()*3);d.accent=Math.random()>.8;d.tie=Math.random()>.9});syncStepEditor()};
+$("seqTransposeDown").onclick=()=>{stepData.forEach(d=>d.midi=Math.max(24,d.midi-12));syncStepEditor()};
+$("seqTransposeUp").onclick=()=>{stepData.forEach(d=>d.midi=Math.min(96,d.midi+12));syncStepEditor()};
+
+function nextSeqIndex(){
+ const len=Math.max(1,Math.min(16,parseInt($("seqLength").value)||16)),dir=$("seqDirection").value;
+ if(dir==="random")return Math.floor(Math.random()*len);
+ if(dir==="reverse"){seqIndex=(seqIndex-1+len)%len;return seqIndex}
+ if(dir==="pingpong"){seqIndex+=seqPingDir;if(seqIndex>=len){seqIndex=Math.max(0,len-2);seqPingDir=-1}else if(seqIndex<0){seqIndex=Math.min(len-1,1);seqPingDir=1}return seqIndex}
+ seqIndex=(seqIndex+1)%len;return seqIndex
+}
+function scheduleSeqTick(){
+ if(seqTimer===null)return;
+ stepEls.forEach(s=>s.classList.remove("play"));
+ const len=Math.max(1,Math.min(16,parseInt($("seqLength").value)||16));seqIndex=Math.max(0,Math.min(len-1,seqIndex));
+ const s=stepEls[seqIndex],d=stepData[seqIndex];s.classList.add("play");
+ const beatMs=(60/Math.max(40,val("bpm")))*1000/4;
+ const swing=val("swing")/100;const swung=seqIndex%2?beatMs*(1+swing):beatMs*(1-swing);
+ if(d.on&&Math.random()<=d.prob){
+   const rat=Math.max(1,d.ratchet),slice=swung/rat,vel=Math.min(1,d.velocity*(d.accent?1.25:1));
+   for(let r=0;r<rat;r++){setTimeout(()=>startNote(d.midi,vel,(slice/1000)*Math.max(.05,d.tie?1.8:d.gate)),r*slice)}
+ }
+ nextSeqIndex();seqTimer=setTimeout(scheduleSeqTick,swung)
+}
+$("seqPlay").onclick=()=>{ensureAudio();if(seqTimer!==null)clearTimeout(seqTimer);seqIndex=$("seqDirection").value==="reverse"?(Math.max(1,Math.min(16,parseInt($("seqLength").value)||16))-1):0;seqPingDir=1;seqTimer=-1;scheduleSeqTick()};
+$("seqStop").onclick=()=>{if(seqTimer!==null&&seqTimer!==-1)clearTimeout(seqTimer);seqTimer=null;stepEls.forEach(s=>s.classList.remove("play"))};
+syncStepEditor();
 
 function drawScope(){
  const c=$("scope"),g=c.getContext("2d"),arr=new Uint8Array(analyser.fftSize),meterArr=new Uint8Array(meterAnalyser.fftSize);

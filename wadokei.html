@@ -79,8 +79,10 @@ function sunEvent(date,lat,lng,rise){
   if(ch>1||ch<-1)return null;
   let H=(rise?360-deg(Math.acos(ch)):deg(Math.acos(ch)))/15;
   let UT=H+RA-.06571*t-6.622-lh; while(UT<0)UT+=24; while(UT>=24)UT-=24;
-  const tz=-date.getTimezoneOffset()/60,base=new Date(date.getFullYear(),date.getMonth(),date.getDate());
-  return new Date(base.getTime()+(UT+tz)*3600000);
+  const tz=-date.getTimezoneOffset()/60;
+  const localHours=((UT+tz)%24+24)%24;
+  const base=new Date(date.getFullYear(),date.getMonth(),date.getDate(),0,0,0,0);
+  return new Date(base.getTime()+localHours*3600000);
 }
 const sunTimes=(d,lat,lng)=>({sunrise:sunEvent(d,lat,lng,true),sunset:sunEvent(d,lat,lng,false)});
 function temporal(now,lat,lng){

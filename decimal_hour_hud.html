@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>十進生活時計 | HUD Decimal Hour Clock</title>
+<style>
+:root{--g:#72ff9d;--g2:#c2ffd4;--ln:rgba(114,255,157,.38)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#000;color:var(--g);font-family:"Courier New",monospace}
+body{display:grid;place-items:center;padding:12px;background:radial-gradient(circle at 50% 40%,#123a1f44,transparent 40%),#000}
+button{font:inherit}.hud{position:relative;width:min(1080px,96vw);padding:28px 34px 24px;border:1px solid #72ff9d66;background:#000804e8;overflow:hidden;box-shadow:inset 0 0 30px #72ff9d12}
+.hud:before{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(to bottom,#fff7 0,#fff7 1px,transparent 2px,transparent 5px);opacity:.08}
+.hud:after{content:"";position:absolute;left:0;right:0;top:-4px;height:2px;background:#72ff9d33;box-shadow:0 0 14px #72ff9d55;animation:scan 5s linear infinite;pointer-events:none}
+@keyframes scan{to{transform:translateY(760px)}}@keyframes pulse{50%{opacity:.35}}
+.top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:12px;letter-spacing:.14em;opacity:.82;position:relative;z-index:1}.live{animation:pulse 1.1s infinite}
+.modes,.stop{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;position:relative;z-index:1}.modes{margin:16px 0 12px}.stop{display:none;margin-top:24px}.stop.show{display:flex}
+.btn{min-height:42px;padding:8px 18px;color:var(--g);background:#72ff9d08;border:1px solid var(--ln);cursor:pointer;letter-spacing:.12em}.btn.active{color:#001508;background:var(--g);box-shadow:0 0 12px #72ff9d88}.btn:disabled{opacity:.35;cursor:not-allowed}
+.center{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:22px;margin:6px 0 24px;position:relative;z-index:1}.cross{height:1px;background:linear-gradient(90deg,transparent,var(--g),transparent);opacity:.5}
+.box{min-width:250px;text-align:center;border:1px solid #72ff9d80;padding:12px 22px}.lab{font-size:11px;letter-spacing:.34em;opacity:.72}.hour{font-size:clamp(58px,8.5vw,100px);line-height:.95;font-weight:700;letter-spacing:.08em;text-shadow:0 0 4px var(--g),0 0 18px #72ff9d66}.decimal{margin-top:7px;font-size:15px;letter-spacing:.2em}.sub{margin-top:5px;font-size:11px;opacity:.62;letter-spacing:.08em}
+.rack{display:grid;gap:18px;position:relative;z-index:1}.row{display:grid;grid-template-columns:124px 1fr 70px;gap:18px;align-items:center}.label{font-size:12px;line-height:1.45;letter-spacing:.07em;opacity:.82}.digit{text-align:right;font-size:32px;font-weight:700;text-shadow:0 0 10px #72ff9d55}.track{min-width:0;min-height:46px;display:flex;align-items:center}
+.shell{width:100%;height:24px;border:1px solid var(--ln);position:relative;background:repeating-linear-gradient(90deg,#72ff9d0d 0,#72ff9d0d 9.55%,#0006 9.55%,#0006 10%);overflow:hidden}.fill{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,#72ff9d24,#72ff9deb);box-shadow:0 0 16px #72ff9daa}
+.blocks,.stars{width:100%;display:grid;grid-template-columns:repeat(10,1fr);gap:9px;align-items:center}.block{height:28px;border:1px solid #72ff9d59;background:#72ff9d0a}.block.on{background:#72ff9deb;box-shadow:0 0 12px #72ff9db8}.star{text-align:center;font-size:27px;color:#72ff9d24}.star.on{color:var(--g);text-shadow:0 0 5px var(--g),0 0 14px #72ff9d99}
+.dottrack{position:relative;width:100%;height:34px;border-top:1px solid #72ff9d40;border-bottom:1px solid #72ff9d20;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(10% - 1px),#72ff9d2e calc(10% - 1px),#72ff9d2e 10%)}
+.runner{position:absolute;top:50%;left:0;width:14px;height:14px;border-radius:50%;background:var(--g2);transform:translate(-50%,-50%);box-shadow:0 0 5px var(--g),0 0 12px var(--g),0 0 24px #72ff9dd0;will-change:left}.ticks{position:absolute;left:0;right:0;bottom:-16px;display:grid;grid-template-columns:repeat(10,1fr);font-size:8px;opacity:.38;text-align:center}
+.foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:24px;padding-top:13px;border-top:1px solid #72ff9d3b;font-size:10px;line-height:1.5;letter-spacing:.1em;opacity:.7;position:relative;z-index:1}
+@media(max-width:700px){.hud{width:100%;padding:22px 14px 18px}.row{grid-template-columns:78px 1fr 38px;gap:8px}.label{font-size:9px}.digit{font-size:23px}.blocks,.stars{gap:3px}.star{font-size:17px}.center{gap:7px}.box{min-width:168px;padding-inline:12px}.top{font-size:9px}.btn{padding:7px 10px;font-size:11px}}
+@media(prefers-reduced-motion:reduce){.hud:after,.live{animation:none}}
+</style>
+</head><body>
+<main class="hud">
+<div class="top"><span>DECIMAL TIME / 10,000 DIV PER HOUR</span><span class="live" id="status">● CLOCK LIVE</span><span id="clock">--:--:--</span></div>
+<div class="modes"><button class="btn active" id="clockMode">CLOCK</button><button class="btn" id="swMode">STOPWATCH</button></div>
+<section class="center"><div class="cross"></div><div class="box"><div class="lab" id="hourLabel">HOUR</div><div class="hour" id="hour">00</div><div class="decimal">T+ <span id="decimalValue">0000</span> / 9999</div><div class="sub" id="sub">CURRENT HOUR POSITION</div></div><div class="cross"></div></section>
+<section class="rack">
+<div class="row"><div class="label">1000 DIGIT<br>CONTINUOUS BAND</div><div class="track"><div class="shell"><div class="fill" id="bar1000"></div></div></div><div class="digit" id="d1000">0</div></div>
+<div class="row"><div class="label">100 DIGIT<br>10 BLOCKS</div><div class="track"><div class="blocks" id="blocks"></div></div><div class="digit" id="d100">0</div></div>
+<div class="row"><div class="label">10 DIGIT<br>10 STARS</div><div class="track"><div class="stars" id="stars"></div></div><div class="digit" id="d10">0</div></div>
+<div class="row"><div class="label">1 DIGIT<br>FLOATING POINT</div><div class="track"><div class="dottrack"><div class="runner" id="runner"></div><div class="ticks"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span></div></div></div><div class="digit" id="d1">0</div></div>
+</section>
+<div class="stop" id="stopControls"><button class="btn" id="startBtn">START</button><button class="btn" id="stopBtn" disabled>STOP</button><button class="btn" id="resetBtn">RESET</button></div>
+<div class="foot"><div>1 HOUR = 10,000 UNITS<br>1 UNIT = 0.36 SEC</div><div style="text-align:right">HUD CLOCK MK-II<br>MODE: <span id="modeText">CLOCK</span></div></div>
+</main>
+<script>
+(()=>{const $=id=>document.getElementById(id),pad2=v=>String(v).padStart(2,"0");
+function make(id,cls,t=""){for(let i=0;i<10;i++){const s=document.createElement("span");s.className=cls;s.textContent=t;$(id).appendChild(s)}}make("blocks","block");make("stars","star","★");
+function lights(id,n){[...$(id).children].forEach((e,i)=>e.classList.toggle("on",i<n))}
+let mode="clock",running=false,acc=0,start=0;
+function elapsed(p){return acc+(running?p-start:0)}
+function setMode(m){mode=m;$("clockMode").classList.toggle("active",m==="clock");$("swMode").classList.toggle("active",m==="stopwatch");$("stopControls").classList.toggle("show",m==="stopwatch");$("hourLabel").textContent=m==="clock"?"HOUR":"ELAPSED HOUR";$("sub").textContent=m==="clock"?"CURRENT HOUR POSITION":"STOPWATCH DECIMAL POSITION";$("modeText").textContent=m.toUpperCase();$("status").textContent=m==="clock"?"● CLOCK LIVE":running?"● STOPWATCH RUN":"● STOPWATCH HOLD"}
+$("clockMode").onclick=()=>setMode("clock");$("swMode").onclick=()=>setMode("stopwatch");
+$("startBtn").onclick=()=>{if(running)return;running=true;start=performance.now();$("startBtn").disabled=true;$("stopBtn").disabled=false;$("status").textContent="● STOPWATCH RUN"};
+$("stopBtn").onclick=()=>{if(!running)return;acc+=performance.now()-start;running=false;$("startBtn").disabled=false;$("stopBtn").disabled=true;$("status").textContent="● STOPWATCH HOLD"};
+$("resetBtn").onclick=()=>{acc=0;start=performance.now();if(!running){$("startBtn").disabled=false;$("stopBtn").disabled=true}};
+function render(ms,h){const wh=((ms%3600000)+3600000)%3600000,exact=wh/3600000*10000,n=Math.floor(exact),s=String(n).padStart(4,"0"),a=+s[0],b=+s[1],c=+s[2],d=+s[3];$("hour").textContent=String(h).padStart(2,"0");$("decimalValue").textContent=s;$("d1000").textContent=a;$("d100").textContent=b;$("d10").textContent=c;$("d1").textContent=d;$("bar1000").style.width=(exact/100)+"%";lights("blocks",b);lights("stars",c);$("runner").style.left=((exact%10)/10*100)+"%"}
+function frame(){const n=new Date();$("clock").textContent=pad2(n.getHours())+":"+pad2(n.getMinutes())+":"+pad2(n.getSeconds());if(mode==="clock"){render((n.getMinutes()*60+n.getSeconds())*1000+n.getMilliseconds(),n.getHours())}else{const e=elapsed(performance.now());render(e,Math.floor(e/3600000))}requestAnimationFrame(frame)}
+setMode("clock");requestAnimationFrame(frame)})();
+</script></body></html>

@@ -1,0 +1,73 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#070c1a"><title>夜専用時計</title><style>
+:root{color-scheme:dark;font-family:ui-sans-serif,system-ui,-apple-system,'Noto Sans JP',sans-serif}*{box-sizing:border-box}body{margin:0;background:#060a14;color:#e6e9f5;min-height:100svh;overflow-x:hidden}.sky{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 78%,#16253b 0%,#090f22 42%,#050912 100%)}.stars{position:fixed;inset:0;pointer-events:none;opacity:.7;background-image:radial-gradient(1px 1px at 18% 18%,#fff9 99%,transparent),radial-gradient(1px 1px at 78% 24%,#fff8 99%,transparent),radial-gradient(2px 2px at 52% 10%,#fff7 99%,transparent),radial-gradient(1px 1px at 36% 65%,#fff6 99%,transparent),radial-gradient(1px 1px at 83% 73%,#fff8 99%,transparent),radial-gradient(1px 1px at 14% 87%,#fff5 99%,transparent);background-size:293px 241px,401px 337px,541px 383px,277px 311px,359px 389px,487px 471px}main{position:relative;max-width:650px;min-height:100svh;margin:auto;padding:35px 24px 32px;display:flex;flex-direction:column;align-items:center;justify-content:space-between}.top{width:100%;display:flex;justify-content:space-between;align-items:center;font-size:12px;letter-spacing:.17em;color:#99aac6}.location{border:1px solid #34445e;background:#101a2a;color:#b7c7df;padding:8px 12px;border-radius:99px;cursor:pointer;letter-spacing:0}.label{font-size:12px;letter-spacing:.43em;color:#91a8c5;margin-top:18px}.time{font-size:clamp(46px,11vw,75px);font-weight:200;letter-spacing:.055em;font-variant-numeric:tabular-nums;margin-top:9px}.date{font-size:13px;color:#91a5c2;letter-spacing:.15em}.moon-area{position:relative;width:min(90vw,460px);margin-top:15px}.moon-area svg{width:100%;display:block;overflow:visible}.moon-disc{filter:drop-shadow(0 0 20px #9bb8df44)}.metrics{display:flex;width:100%;justify-content:space-around;text-align:center;gap:12px;margin-top:7px}.metric strong{display:block;font-size:clamp(19px,5vw,25px);font-weight:350;letter-spacing:.03em;font-variant-numeric:tabular-nums}.metric span{display:block;margin-top:7px;font-size:11px;color:#879cb8;letter-spacing:.12em}.moon-events{display:flex;justify-content:space-around;gap:14px;width:100%;margin-top:18px;padding:15px 0;border-top:1px solid #35445b77;border-bottom:1px solid #35445b77}.moon-event{text-align:center;min-width:0;flex:1}.moon-event span{display:block;font-size:11px;color:#91a8c5;letter-spacing:.13em}.moon-event strong{display:block;margin-top:7px;font-size:clamp(19px,5vw,25px);font-weight:350;font-variant-numeric:tabular-nums}.moon-event small{display:block;margin-top:4px;font-size:10px;color:#758daa}.foot{width:100%;text-align:center;margin-top:25px}.dawn{font-size:12px;color:#8ca1bf;letter-spacing:.14em}.dawn-value{font-size:clamp(30px,8vw,48px);font-weight:250;font-variant-numeric:tabular-nums;color:#f0ceaa;margin-top:8px;letter-spacing:.07em}.until{font-size:14px;color:#9eb2ce}.hint{font-size:11px;color:#657b9a;margin-top:17px}.day{display:none;min-height:100svh;position:relative;align-items:center;justify-content:center;flex-direction:column;text-align:center;gap:14px}.day h1{font-size:clamp(30px,8vw,46px);font-weight:200;letter-spacing:.28em;margin:0;padding-left:.28em}.day small{font-size:12px;color:#8295b0;letter-spacing:.12em}body.daytime .sky,body.daytime .stars{display:none}body.daytime{background:#0b1020}body.daytime main{display:none}body.daytime .day{display:flex}.sun-line{stroke:#536b8c;stroke-width:1.3;stroke-dasharray:4 6}.moon-height{font-size:11px;fill:#a2b7d1}.countline{margin:10px 0 0;font-size:13px;color:#b4c7de}#status{margin-top:12px;color:#7189a9;font-size:11px;text-align:center}@media(max-height:660px){main{padding-top:20px;padding-bottom:16px}.moon-area{width:min(64vw,340px)}.foot{margin-top:10px}.label{margin-top:7px}}
+</style></head><body><div class="sky"></div><div class="stars"></div><main><div class="top"><span>NOCTURNE · NIGHT CLOCK</span><button class="location" id="loc" title="位置情報を更新">◎ <span id="locname">草津市（基準位置）</span></button></div><div><div class="label" style="text-align:center">夜の時刻</div><div class="time" id="clock" style="text-align:center">--:--:--</div><div class="date" id="date" style="text-align:center">---- / -- / --</div></div><section class="moon-area" aria-label="月の形と地平線上の高度"><svg viewBox="0 0 440 300" role="img"><defs><radialGradient id="lunar" cx="38%" cy="32%" r="80%"><stop offset="0" stop-color="#f7f3df"/><stop offset=".65" stop-color="#d7d8d3"/><stop offset="1" stop-color="#8b99ad"/></radialGradient><clipPath id="moonclip"><circle cx="220" cy="128" r="73"/></clipPath></defs><path d="M28 225 Q220 227 412 225" class="sun-line" fill="none"/><text x="30" y="243" class="moon-height">地平線 0°</text><g id="moon-symbol" class="moon-disc" transform="translate(0 0)"><circle cx="220" cy="128" r="73" fill="#172336" stroke="#586a83" stroke-width=".5"/><g clip-path="url(#moonclip)"><path id="lit" fill="url(#lunar)"/><circle cx="193" cy="103" r="10" fill="#7d8994" opacity=".09"/><circle cx="245" cy="135" r="16" fill="#707f8e" opacity=".10"/><circle cx="209" cy="165" r="7" fill="#788698" opacity=".12"/></g></g><path d="M367 215 L367 53" stroke="#526784" stroke-width="1"/><path d="M361 215h12M361 134h12M361 53h12" stroke="#526784" stroke-width="1"/><text x="378" y="219" class="moon-height">0°</text><text x="378" y="138" class="moon-height">45°</text><text x="378" y="57" class="moon-height">90°</text><circle id="altmark" cx="367" cy="215" r="4.5" fill="#e3ddd0"/><text id="alttext" x="341" y="198" text-anchor="end" class="moon-height">--°</text></svg></section><div class="metrics"><div class="metric"><strong id="phase">--</strong><span>月の満ち欠け</span></div><div class="metric"><strong id="age">--</strong><span>月齢（日）</span></div><div class="metric"><strong id="alt">--</strong><span>月の高度</span></div></div><div class="moon-events"><div class="moon-event"><span>月の出</span><strong id="moonrise">--:--</strong><small id="moonrise-day"></small></div><div class="moon-event"><span>月の入り</span><strong id="moonset">--:--</strong><small id="moonset-day"></small></div></div><div class="foot"><div class="dawn" id="dawnlabel">次の日の出</div><div class="dawn-value" id="dawnvalue">--:--</div><div class="countline" id="countline"></div><div id="status">天文計算による概算値 · 大気差などにより数分の誤差があります</div></div></main><section class="day"><h1>準備中</h1></section><script>
+// Solar calculations based on NOAA simplified astronomical equations. Times in Julian days.
+const RAD=Math.PI/180, dayMs=86400000, J1970=2440588, J2000=2451545, e=RAD*23.4397;
+let latitude=35.017,longitude=135.96,locLabel='草津市（基準位置）';
+const toJulian=d=>d.getTime()/dayMs-.5+J1970, fromJulian=j=>new Date((j+.5-J1970)*dayMs), toDays=d=>toJulian(d)-J2000;
+const rightAscension=(l,b)=>Math.atan2(Math.sin(l)*Math.cos(e)-Math.tan(b)*Math.sin(e),Math.cos(l));
+const declination=(l,b)=>Math.asin(Math.sin(b)*Math.cos(e)+Math.cos(b)*Math.sin(e)*Math.sin(l));
+const sidereal=(d,lw)=>RAD*(280.16+360.9856235*d)-lw;
+function sunCoords(d){let M=RAD*(357.5291+.98560028*d),C=RAD*(1.9148*Math.sin(M)+.02*Math.sin(2*M)+.0003*Math.sin(3*M)),L=M+C+RAD*(102.9372+180);return {dec:declination(L,0),ra:rightAscension(L,0),M,L};}
+const julianCycle=(d,lw)=>Math.round(d-.0009-lw/(2*Math.PI));
+const approxTransit=(Ht,lw,n)=>.0009+(Ht+lw)/(2*Math.PI)+n;
+const solarTransit=(ds,M,L)=>J2000+ds+.0053*Math.sin(M)-.0069*Math.sin(2*L);
+function getSunTimes(date,lat,lon){const lw=-lon*RAD,phi=lat*RAD,d=toDays(date),n=julianCycle(d,lw),ds=approxTransit(0,lw,n),c=sunCoords(ds),Jnoon=solarTransit(ds,c.M,c.L),h=-.833*RAD,cosH=(Math.sin(h)-Math.sin(phi)*Math.sin(c.dec))/(Math.cos(phi)*Math.cos(c.dec));if(cosH>1||cosH< -1)return null;let w=Math.acos(cosH),a=approxTransit(w,lw,n),set=solarTransit(a,c.M,c.L);return {rise:fromJulian(Jnoon-(set-Jnoon)),set:fromJulian(set)};}
+function moonCoords(d){let L=RAD*(218.316+13.176396*d),M=RAD*(134.963+13.064993*d),F=RAD*(93.272+13.229350*d),l=L+RAD*6.289*Math.sin(M),b=RAD*5.128*Math.sin(F),dt=385001-20905*Math.cos(M);return {ra:rightAscension(l,b),dec:declination(l,b),dist:dt};}
+function getMoon(date,lat,lon){let d=toDays(date),c=moonCoords(d),H=sidereal(d,-lon*RAD)-c.ra,phi=lat*RAD,h=Math.asin(Math.sin(phi)*Math.sin(c.dec)+Math.cos(phi)*Math.cos(c.dec)*Math.cos(H)),parallax=Math.asin(6378.14/c.dist)*Math.cos(h);return (h-parallax)/RAD;}
+// Locate horizon crossings numerically. Geocentric lunar altitude already includes horizontal parallax.
+// -0.3 deg approximates the apparent upper-limb horizon with refraction and lunar radius.
+function getMoonEvents(start,end,lat,lon){
+ const step=10*60000, threshold=-.3, events={rise:[],set:[]};
+ let t=start.getTime(), limit=end.getTime(), prev=getMoon(new Date(t),lat,lon)-threshold;
+ for(let next=t+step;next<=limit+step;next+=step){
+  let hi=Math.min(next,limit), cur=getMoon(new Date(hi),lat,lon)-threshold;
+  if((prev<0&&cur>=0)||(prev>=0&&cur<0)){
+   let lo=t,up=hi,below=prev<0;
+   for(let j=0;j<18;j++){let mid=(lo+up)/2,v=getMoon(new Date(mid),lat,lon)-threshold;if((v<0)===below)lo=mid;else up=mid;}
+   events[below?'rise':'set'].push(new Date((lo+up)/2));
+  }
+  t=hi;prev=cur;if(hi===limit)break;
+ }
+ return events;
+}
+function eventDisplay(kind,events,night){
+ // Use the most recent event before dawn if one occurs during this night;
+ // otherwise use the next occurrence, up to roughly two days later.
+ const inNight=events[kind].filter(d=>d>=night.sunset&&d<night.sunrise);
+ const next=events[kind].find(d=>d>=night.sunrise);
+ const prev=events[kind].filter(d=>d<night.sunset).at(-1);
+ const chosen=inNight[0]||next||prev;
+ const time=document.getElementById('moon'+kind),note=document.getElementById('moon'+kind+'-day');
+ if(!chosen){time.textContent='—';note.textContent='算出できません';return;}
+ time.textContent=fmt(chosen);
+ const nightStart=new Date(night.sunset.getFullYear(),night.sunset.getMonth(),night.sunset.getDate());
+ const day=new Date(chosen.getFullYear(),chosen.getMonth(),chosen.getDate());
+ const offset=Math.round((day-nightStart)/dayMs);
+ note.textContent=(offset===0?'日没当日':offset===1?'翌日':offset===2?'翌々日':offset<0?'前日':`${offset}日後`)+(inNight.length?' · 今夜':' · 今夜の外');
+}
+let lastEventsKey='';
+function updateMoonEvents(night){
+ const key=[night.sunset.getTime(),latitude.toFixed(5),longitude.toFixed(5)].join('/');
+ if(key===lastEventsKey)return;
+ lastEventsKey=key;
+ const events=getMoonEvents(new Date(night.sunset.getTime()-dayMs),new Date(night.sunrise.getTime()+2*dayMs),latitude,longitude);
+ eventDisplay('rise',events,night);eventDisplay('set',events,night);
+}
+const synodic=29.530588853,knownNew=Date.UTC(2000,0,6,18,14,0);function getPhase(t){let age=((t-knownNew)/dayMs%synodic+synodic)%synodic;return {age,frac:age/synodic,illum:(1-Math.cos(2*Math.PI*age/synodic))/2};}
+function moonPath(frac){let waxing=frac<.5,cos=Math.cos(2*Math.PI*frac),r=73,cx=220,cy=128;let pts=[]; // trace illuminated limb from top to bottom and back along terminator
+for(let i=0;i<=100;i++){let theta=-Math.PI/2+Math.PI*i/100;pts.push([cx+(waxing?r:-r)*Math.cos(theta),cy+r*Math.sin(theta)]);}
+for(let i=100;i>=0;i--){let theta=-Math.PI/2+Math.PI*i/100;pts.push([cx+cos*r*Math.cos(theta),cy+r*Math.sin(theta)]);}
+return 'M'+pts.map(p=>p.map(v=>v.toFixed(2)).join(',')).join('L')+'Z';}
+function phaseName(age){if(age<1.5||age>28.2)return '新月';if(age<6.6)return '三日月';if(age<8.6)return '上弦';if(age<13.5)return '十三夜前';if(age<16.4)return '満月';if(age<21.3)return '寝待月';if(age<23.6)return '下弦';return '有明月';}
+const two=n=>String(n).padStart(2,'0'),fmt=d=>two(d.getHours())+':'+two(d.getMinutes()),fmtDuration=m=>`${Math.floor(m/3600000)}時間${two(Math.floor(m%3600000/60000))}分${two(Math.floor(m%60000/1000))}秒`;
+function tick(){const now=new Date();document.getElementById('clock').textContent=fmt(now)+':'+two(now.getSeconds());document.getElementById('date').textContent=`${now.getFullYear()} / ${two(now.getMonth()+1)} / ${two(now.getDate())}`;
+// Compute solar boundaries across adjacent dates to avoid the sunset/midnight edge case.
+const candidates=[];for(let i=-1;i<=2;i++){let d=new Date(now.getFullYear(),now.getMonth(),now.getDate()+i,12);let s=getSunTimes(d,latitude,longitude);if(s)candidates.push(s);}
+let night=null;for(let i=0;i<candidates.length-1;i++){if(now>=candidates[i].set&&now<candidates[i+1].rise){night={sunset:candidates[i].set,sunrise:candidates[i+1].rise};break;}}
+document.body.classList.toggle('daytime',!night);if(!night)return;
+updateMoonEvents(night);
+const p=getPhase(now.getTime()),alt=getMoon(now,latitude,longitude),remaining=night.sunrise-now;
+document.getElementById('lit').setAttribute('d',moonPath(p.frac));document.getElementById('phase').textContent=phaseName(p.age);document.getElementById('age').textContent=p.age.toFixed(1);document.getElementById('alt').textContent=alt.toFixed(1)+'°';let y=215-Math.max(0,Math.min(90,alt))*162/90;document.getElementById('altmark').setAttribute('cy',y);document.getElementById('altmark').setAttribute('fill',alt<0?'#68768b':'#e3ddd0');document.getElementById('alttext').setAttribute('y',y-13);document.getElementById('alttext').textContent=alt.toFixed(1)+'°';document.getElementById('dawnlabel').textContent=remaining<=3*3600000?'夜明けまで、あと':'次の日の出';document.getElementById('dawnvalue').textContent=remaining<=3*3600000?fmtDuration(remaining):fmt(night.sunrise);document.getElementById('countline').textContent=remaining<=3*3600000?`日の出 ${fmt(night.sunrise)}`:`日没 ${fmt(night.sunset)}　–　日の出 ${fmt(night.sunrise)}`;document.getElementById('dawnvalue').style.color=remaining<=3*3600000?'#ffcd9f':'#e0d5c9';}
+document.getElementById('loc').addEventListener('click',()=>{if(!navigator.geolocation){alert('位置情報を使用できません。');return;}navigator.geolocation.getCurrentPosition(p=>{latitude=p.coords.latitude;longitude=p.coords.longitude;document.getElementById('locname').textContent='現在地';tick();},()=>alert('位置情報を取得できませんでした。草津市の基準位置で表示します。'),{enableHighAccuracy:false,timeout:10000,maximumAge:3600000});});tick();setInterval(tick,1000);
+</script></body></html>

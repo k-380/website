@@ -1,0 +1,85 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#10151e"><title>寝落ちラジオ｜人物列伝と英単語</title><style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;background:#10151e;color:#e8e5dc}*{box-sizing:border-box}body{margin:0;min-height:100vh}main{max-width:690px;margin:auto;padding:30px 20px 60px}h1{font-size:clamp(1.65rem,5vw,2.2rem);letter-spacing:.04em;margin:12px 0 8px}.sub{color:#a7adba;line-height:1.7}h2{font-size:1rem;color:#b6bfcd;margin:26px 0 12px}.kicker{color:#c6ae7f;font-size:.85rem;letter-spacing:.12em}.choice{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.choice button{background:#1b2430;border:1px solid #394351;border-radius:15px;color:#e8e5dc;padding:22px 12px;text-align:left;cursor:pointer;min-height:125px}.choice button strong{font-size:1.08rem;display:block;margin-bottom:12px}.choice button span{color:#aeb6bf;font-size:.83rem;line-height:1.5}.choice button[aria-pressed=true]{border-color:#d4b57a;background:#2a2930;box-shadow:inset 0 0 0 1px #d4b57a}.panel{margin-top:22px;background:#1a222d;border:1px solid #313b48;padding:20px;border-radius:16px}.now{font-size:1.3rem;margin:8px 0}.muted{color:#abb4c0;font-size:.9rem;line-height:1.65}.controls{display:flex;flex-wrap:wrap;gap:9px;margin-top:18px}button.action{border:1px solid #485261;background:#283342;color:#f1eee6;border-radius:12px;padding:13px 16px;font-size:1rem;cursor:pointer}button.primary{background:#cbb184;border-color:#cbb184;color:#16191e;font-weight:700;flex:1}.settings{display:grid;grid-template-columns:1fr 1fr;gap:15px;margin-top:8px}label{display:flex;flex-direction:column;gap:9px;font-size:.9rem;color:#d8d6cf}select,input{width:100%;background:#121922;border:1px solid #485261;border-radius:9px;color:#eee8dc;padding:10px;font-size:1rem}.story{max-height:185px;overflow:auto;line-height:1.9;color:#aab3c1;font-size:.95rem;white-space:pre-wrap;margin-top:16px}footer{color:#87919e;font-size:.78rem;margin-top:24px;line-height:1.7}button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid #e0c797;outline-offset:3px}@media(max-width:530px){.choice{grid-template-columns:1fr}.choice button{min-height:0;padding:14px}.choice button strong{margin-bottom:4px}.settings{grid-template-columns:1fr}}
+</style></head><body><main><div class="kicker">SLEEPY RADIO</div><h1>寝落ちラジオ</h1><p class="sub">人物の生涯や英単語を、静かに、途切れずに。聞き逃しても大丈夫な夜の朗読。</p><h2>今夜のジャンルを選ぶ</h2><div class="choice"><button id="history" type="button" aria-pressed="true"><strong>🏛 世界史人物列伝</strong><span>王・政治家・探検家・発明家たちの生涯</span></button><button id="philosophy" type="button" aria-pressed="false"><strong>📜 哲学者列伝</strong><span>思想家たちの生涯と、考え続けた問い</span></button><button id="words" type="button" aria-pressed="false"><strong>🔤 英単語と意味</strong><span>英語の発音、日本語の意味をゆっくり繰り返す</span></button></div><section class="panel" aria-label="朗読プレイヤー"><div class="muted" id="count">全5人から順番に朗読</div><div class="now" id="name">ハンニバル</div><div class="muted" id="detail">再生前</div><div class="controls"><button class="action primary" id="toggle">▶ 再生する</button><button class="action" id="next">次へ →</button></div><div class="story" id="story" aria-label="朗読本文"></div></section><section class="panel" aria-label="JSONファイルの読み込み"><h2 style="margin-top:0">JSONデータを追加する</h2><p class="muted">人物列伝と英単語のJSONに対応。複数ファイルをまとめて選択できます。同名人物・同一英単語は上書きされます。英単語形式：<code>{"words":[{"word":"serene","meaning":"穏やかな"}]}</code></p><label>JSONファイルを選択<input id="jsonfile" type="file" accept=".json,application/json" multiple></label><div class="controls"><button class="action" id="resetdata" type="button">追加データをリセット</button><button class="action" id="exportdata" type="button">現在のデータをJSON保存</button></div><p id="importstatus" class="muted" role="status" aria-live="polite">データはこのページ内で使用され、外部へ送信されません。</p></section><h2>眠るための設定</h2><div class="settings"><label>読み上げ速度<select id="rate"><option value="0.7">ゆっくり 0.7倍</option><option value="0.85" selected>ややゆっくり 0.85倍</option><option value="1">標準 1.0倍</option></select></label><label>停止タイマー<select id="timer"><option value="0">停止しない</option><option value="30">30分</option><option value="60" selected>60分</option><option value="120">120分</option></select></label><label>項目間の間隔<select id="pause"><option value="1000">1秒</option><option value="3000" selected>3秒</option><option value="6000">6秒</option></select></label><label>読み上げ音量<input type="range" id="volume" min="0.1" max="1" step="0.1" value="0.6"></label></div><footer>日本語音声は端末とブラウザに依存します。音声再生はユーザー操作で開始します。スマートフォンの画面消灯後は、OSによって音声が停止する場合があります。長時間の連続再生は端末・ブラウザの仕様によって制限されます。</footer></main><script>
+'use strict';
+const DEFAULT_DATA={history:[
+{name:'ハンニバル',years:'紀元前3世紀〜紀元前2世紀',text:`ハンニバルは、古代地中海世界の都市国家カルタゴに生まれました。父は将軍のハミルカル・バルカです。ハンニバルが生きた時代、カルタゴとローマは地中海の覇権をめぐって争っていました。\n\nハンニバルは軍を率いてイベリア半島から進み、アルプス山脈を越えてイタリアへ入ったことで知られています。軍には象も含まれていました。ただし、険しい山越えでは多くの兵や動物を失いました。\n\nイタリアでは、トレビア川の戦いやトラシメヌス湖畔の戦い、そしてカンナエの戦いでローマ軍に勝利しました。とくにカンナエでの包囲戦術は、のちの軍事史でも繰り返し論じられます。\n\nそれでもローマは降伏しませんでした。ローマ軍は戦い方を変え、やがて北アフリカへ反撃しました。帰国したハンニバルはザマの戦いでスキピオに敗れました。戦後、カルタゴの政治にも関わりましたが、のちに祖国を離れます。彼の生涯は、卓越した戦術だけでは国家間の戦争が決まらないことを静かに物語っています。`},
+{name:'始皇帝',years:'紀元前3世紀',text:`始皇帝は、中国の戦国時代を終わらせ、秦による統一を実現した人物です。最初は秦王政と呼ばれていました。紀元前二百二十一年、六国を征服したのち、新たに皇帝という称号を用いました。\n\n広い領域を統治するため、文字や度量衡などの制度を統一する政策が進められました。地方を郡や県に分け、中央から官吏を派遣する仕組みも重視されます。\n\n一方、宮殿や陵墓の建設、厳しい統治は人々に大きな負担をかけました。現在の西安近郊にある兵馬俑は、その陵墓の一部として有名です。\n\n始皇帝の死後、秦王朝は短い期間で滅びました。しかし、皇帝を頂点とする統一国家という形は、その後の中国史に長い影響を残しました。`},
+{name:'ユスティニアヌス一世',years:'6世紀',text:`ユスティニアヌス一世は、六世紀に東ローマ帝国を治めた皇帝です。都はコンスタンティノープルにありました。彼は、かつてのローマ帝国の領土を取り戻そうと考え、北アフリカやイタリアに軍を送りました。\n\n彼の時代には、ローマ法を整理する大規模な編纂事業が進められました。後世にローマ法大全と呼ばれる一連の法典は、ヨーロッパの法学に深い影響を与えます。\n\n首都には、壮大な聖ソフィア大聖堂が再建されました。その大きなドームは、長いあいだ人々を驚かせました。\n\nしかし、戦争や疫病は帝国を疲弊させました。華やかな建築と法制度の整備の背後には、多くの困難がありました。`},
+{name:'ナポレオン・ボナパルト',years:'1769〜1821年',text:`ナポレオンは、地中海のコルシカ島に生まれました。フランス革命の動乱のなかで軍人として頭角を現し、やがてフランスの政治権力を握ります。千八百四年には皇帝となりました。\n\n彼の統治では、民法典の制定や行政制度の整備が進められました。ナポレオン法典と呼ばれる民法典は、フランスの外にも大きな影響を及ぼします。\n\n一方、ヨーロッパの各地で戦争を繰り返しました。千八百十二年のロシア遠征は大きな失敗に終わり、権力は揺らぎます。いったん退位した後に復帰しましたが、ワーテルローの戦いで敗れました。\n\n最後は南大西洋のセントヘレナ島で暮らし、その地で亡くなりました。`},
+{name:'オットー・フォン・ビスマルク',years:'1815〜1898年',text:`ビスマルクは、十九世紀のプロイセンで政治家となった人物です。彼はプロイセンの首相として、ドイツ諸邦を統一する過程で重要な役割を果たしました。\n\nデンマーク、オーストリア、フランスとの戦争を経て、千八百七十一年にドイツ帝国が成立しました。ビスマルクは帝国宰相となります。\n\n統一後は、ヨーロッパの勢力均衡を保つため、複雑な外交関係を築きました。国内では社会主義運動を抑える政策を進める一方、疾病保険や老齢・廃疾保険など、社会保険制度の整備にも取り組みました。\n\n千八百九十年、新皇帝ヴィルヘルム二世との対立によって退任します。ドイツ統一の中心人物でありながら、統一後は新たな大戦争を避けようと外交に力を注いだ人物でもありました。`}
+],philosophy:[
+{name:'ソクラテス',years:'紀元前469頃〜紀元前399年',text:`ソクラテスは古代ギリシャ、アテナイの哲学者です。本人は著作を残さなかったと考えられています。私たちが彼の考えを知るのは、主に弟子のプラトンらが残した文章によってです。\n\nソクラテスは、人々に問いを投げかけました。勇気とは何か。正義とは何か。善く生きるとはどういうことか。答えが出ると、その言葉の意味をさらに問い直しました。\n\n彼は裁判にかけられ、死刑判決を受けました。プラトンの対話篇には、死を前にしても自分の生き方を考え続ける姿が描かれています。\n\nソクラテスという人物については、史実と弟子たちの描写を区別する難しさも残されています。`},
+{name:'エピクロス',years:'紀元前341〜紀元前270年',text:`エピクロスは古代ギリシャの哲学者です。彼はアテナイに庭園と呼ばれる学園を開き、仲間とともに暮らしながら哲学を教えました。\n\nエピクロスの名前は快楽主義と結びつきます。しかし、彼が重視したのは、際限なく刺激を求める暮らしではありません。身体の苦痛や心の動揺が少ない、穏やかな状態です。\n\n友人との交流、必要なものを見極めること、根拠のない恐れから自由になることが、幸福に関わると考えました。\n\nとくに死への恐怖について、死んだときには感覚そのものがないのだから、死を経験する自分はいない、と論じました。`},
+{name:'バールーフ・スピノザ',years:'1632〜1677年',text:`スピノザは十七世紀、オランダ共和国で活動した哲学者です。アムステルダムのユダヤ人共同体で育ちましたが、のちに共同体から破門されました。\n\n彼は神と自然を切り離された二つのものとして捉えず、存在するものすべてを一つの実体のもとで理解しようとしました。\n\n代表作のエチカは、定義や公理、命題を積み重ねる幾何学的な形式で書かれています。人間の感情についても、自然の一部として理解しようとしました。\n\nスピノザはレンズ磨きの仕事にも携わりました。生前、主著のエチカは刊行されず、死後に出版されました。`},
+{name:'イマヌエル・カント',years:'1724〜1804年',text:`カントは十八世紀の哲学者です。プロイセンのケーニヒスベルクで生まれ、生涯の大部分をそこで過ごしました。\n\n彼は、人間が世界をどのように認識するのかという問いを深く考えました。経験から知識を得るだけでなく、私たちの認識の仕組み自体が経験の形を定めると論じました。\n\n主著の純粋理性批判は、理性によって何が分かり、何が分からないのかを検討する書物です。倫理学では、自分の行為の原則が普遍的な法則になりうるかを問いました。\n\n彼の議論は難解ですが、中心にあるのは、知るとはどういうことか、そして人間はどう行為すべきか、という問いです。`},
+{name:'アルトゥル・ショーペンハウアー',years:'1788〜1860年',text:`ショーペンハウアーは、十九世紀のドイツ語圏で活動した哲学者です。カントの影響を受けながら、自身の哲学を構築しました。\n\n主著は、意志と表象としての世界です。彼は、私たちが経験する世界を表象として捉える一方、その根底に盲目的な意志を見いだしました。\n\n欲望が満たされなければ苦しみ、満たされても退屈が訪れるという人間観は、厭世的な哲学として知られます。\n\nしかし、芸術を鑑賞することや他者への同情については、欲望に支配された状態から離れる可能性を論じました。彼の思想は文学や音楽にも影響を与えました。`}
+]};
+const DEFAULT_WORDS=[
+ ['serene','穏やかな、静かな'],['gentle','優しい、穏やかな'],['tranquil','静かな、落ち着いた'],['meadow','草原、牧草地'],['breeze','そよ風'],['glimmer','かすかな光、ほのかな輝き'],['whisper','ささやく、ささやき'],['distant','遠く離れた'],['harbor','港、避難場所'],['wander','歩き回る、さまよう'],['lantern','ランタン、灯り'],['twilight','たそがれ、薄明かり'],['murmur','つぶやく、さらさらという音'],['stillness','静けさ'],['gather','集める、集まる'],['shelter','避難所、雨風をしのぐ場所'],['delicate','繊細な、かすかな'],['horizon','地平線、水平線'],['gentleness','優しさ、穏やかさ'],['drift','漂う、ゆっくり流れる'],['reflect','反射する、振り返って考える'],['dawn','夜明け'],['dusk','夕暮れ'],['moss','コケ'],['valley','谷'],['brook','小川'],['fern','シダ'],['pebble','小石'],['shore','岸、海岸'],['ripple','さざ波、波紋'],['bloom','花が咲く、開花'],['rest','休息、休む'],['calm','落ち着いた、静けさ'],['fade','薄れる、次第に消える'],['slowly','ゆっくりと'],['quietly','静かに'],['softly','柔らかく、静かに'],['dwell','住む、心にとどめる'],['ordinary','普通の、ありふれた'],['patient','辛抱強い、患者']
+].map(([word,meaning])=>({word,meaning}));
+const DATA=JSON.parse(JSON.stringify(DEFAULT_DATA));DATA.words=structuredClone(DEFAULT_WORDS);
+let category='history',index=0,playing=false,session=0,stopAt=0,pending=null;
+const $=id=>document.getElementById(id),synth=window.speechSynthesis,supported=!!(synth&&window.SpeechSynthesisUtterance);
+function entries(){return DATA[category]}
+function chosen(){return entries()[index]}
+function clearPending(){if(pending!==null){clearTimeout(pending);pending=null}}
+function cancelVoice(){session++;clearPending();if(supported)synth.cancel()}
+function show(){const list=entries(),isWords=category==='words',v=chosen();$('count').textContent=`${index+1} / ${list.length}${isWords?'語':'人'}目 · 終わったら最初に戻ります`;$('name').textContent=isWords?v.word:v.name;$('detail').textContent=isWords?v.meaning:v.years;$('story').textContent=isWords?`${v.word}。${v.meaning}。`:v.text;$('toggle').textContent=playing?'Ⅱ 停止する':'▶ 再生する';for(const c of ['history','philosophy','words'])$(c).setAttribute('aria-pressed',String(category===c))}
+function stop(){playing=false;stopAt=0;cancelVoice();show()}
+function voiceFor(lang){const voices=synth.getVoices();return voices.find(v=>v.lang.toLowerCase()===lang.toLowerCase())||voices.find(v=>v.lang.toLowerCase().startsWith(lang.substring(0,2).toLowerCase()))}
+function say(text,lang,current,onDone){if(!playing||current!==session)return;const utter=new SpeechSynthesisUtterance(text);utter.lang=lang;utter.rate=Number($('rate').value);utter.volume=Number($('volume').value);utter.pitch=.92;utter.voice=voiceFor(lang)||null;utter.onend=()=>{if(playing&&current===session)onDone()};utter.onerror=e=>{if(!playing||current!==session||['canceled','interrupted'].includes(e.error))return;stop();$('detail').textContent='音声を再生できませんでした。端末の音声設定をご確認ください。'};synth.speak(utter)}
+function advance(current){if(!playing||current!==session)return;pending=setTimeout(()=>{pending=null;if(!playing||current!==session)return;if(stopAt&&Date.now()>=stopAt){stop();return}index=(index+1)%entries().length;show();speak()},Number($('pause').value))}
+function speak(){if(!playing)return;if(stopAt&&Date.now()>=stopAt){stop();return}if(!supported){stop();alert('このブラウザは音声読み上げに対応していません');return}cancelVoice();const current=session,v=chosen();if(category==='words')say(v.word,'en-US',current,()=>say(v.meaning,'ja-JP',current,()=>advance(current)));else say(`${v.name}。${v.text}`,'ja-JP',current,()=>advance(current))}
+function start(){playing=true;const min=Number($('timer').value);stopAt=min?Date.now()+min*60000:0;show();speak()}
+function setImportStatus(message){$('importstatus').textContent=message}
+function validWord(raw){
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('英単語の形式が不正です');
+ if(typeof raw.word!=='string'||!raw.word.trim()||typeof raw.meaning!=='string'||!raw.meaning.trim())throw Error('wordとmeaningは空でない文字列にしてください');
+ if(raw.word.length>100||raw.meaning.length>300)throw Error('英単語または意味が長すぎます');
+ return {category:'words',word:raw.word.trim(),meaning:raw.meaning.trim()};
+}
+function validRecord(raw,defaultCategory){
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))throw Error('人物の形式が不正です');
+ const category=raw.category??defaultCategory;
+ if(category==='words')return validWord(raw);
+ if(!['history','philosophy'].includes(category))throw Error('categoryはhistory、philosophy、wordsのいずれかにしてください');
+ for(const field of ['name','text'])if(typeof raw[field]!=='string'||!raw[field].trim())throw Error(field+'が空、または文字列ではありません');
+ if(raw.years!==undefined&&typeof raw.years!=='string')throw Error('yearsは文字列にしてください');
+ if(raw.text.length>40000)throw Error('textが長すぎます（40000文字以内）');
+ return {category,name:raw.name.trim().slice(0,150),years:(raw.years||'').trim().slice(0,200),text:raw.text.trim()};
+}
+function parseRecords(input){
+ let rows=[];
+ if(Array.isArray(input))rows=input;
+ else if(input&&typeof input==='object'){
+  if(Array.isArray(input.words))rows=input.words.map(x=>({...x,category:'words'}));
+  else if(Array.isArray(input.people))rows=input.people;
+  else if(Array.isArray(input.persons))rows=input.persons;
+  else if(['history','philosophy','words'].some(c=>Array.isArray(input[c]))){
+   for(const c of ['history','philosophy','words'])if(Array.isArray(input[c]))rows.push(...input[c].map(x=>({...x,category:c})));
+  }else if(typeof input.name==='string'||typeof input.word==='string')rows=[input];
+ }
+ if(!rows.length)throw Error('データがありません。people配列、words配列、または単独のレコードを指定してください');
+ if(rows.length>1000)throw Error('一度に読み込めるのは1000人までです');
+ return rows.map(x=>validRecord(x,input.category));
+}
+$('jsonfile').addEventListener('change',async e=>{
+ const files=[...e.target.files];if(!files.length)return;
+ let updates=[];let failures=[];
+ for(const file of files){try{
+  if(file.size>10*1024*1024)throw Error('10MBを超えています');
+  updates.push(...parseRecords(JSON.parse((await file.text()).replace(/^\uFEFF/,''))));
+ }catch(err){failures.push(file.name+': '+err.message)}}
+ if(updates.length){stop();for(const item of updates){
+  const list=DATA[item.category],isWords=item.category==='words',i=list.findIndex(v=>isWords?v.word.toLowerCase()===item.word.toLowerCase():v.name===item.name);
+  const record=isWords?{word:item.word,meaning:item.meaning}:{name:item.name,years:item.years,text:item.text};
+  if(i>=0)list[i]=record;else list.push(record);
+ }index=0;show()}
+ setImportStatus(`${updates.length}件を読み込みました。`+(failures.length?' エラー: '+failures.join(' / '):''));
+ e.target.value='';
+});
+$('resetdata').onclick=()=>{stop();for(const c of ['history','philosophy'])DATA[c]=JSON.parse(JSON.stringify(DEFAULT_DATA[c]));DATA.words=structuredClone(DEFAULT_WORDS);index=0;show();setImportStatus('初期データに戻しました。')};
+$('exportdata').onclick=()=>{const blob=new Blob([JSON.stringify({history:DATA.history,philosophy:DATA.philosophy,words:DATA.words},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='retsuden_data.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),3000)};
+for(const c of ['history','philosophy','words'])$(c).onclick=()=>{stop();category=c;index=0;show()};$('toggle').onclick=()=>playing?stop():start();$('next').onclick=()=>{cancelVoice();index=(index+1)%DATA[category].length;show();if(playing)speak()};$('rate').onchange=()=>{if(playing)speak()};$('volume').onchange=()=>{if(playing)speak()};$('timer').onchange=()=>{if(playing){let m=Number($('timer').value);stopAt=m?Date.now()+m*60000:0}};document.addEventListener('visibilitychange',()=>{});window.addEventListener('pagehide',stop);show();
+</script></body></html>

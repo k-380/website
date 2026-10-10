@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>拡散方程式：境界なし・反射壁・吸収壁の比較</title>
+<title>拡散方程式：5つの境界条件の比較</title>
 <style>
   :root{
     --bg:#0a0f16; --panel:#111924; --line:#26384d; --text:#e8f2ff;
@@ -61,7 +61,7 @@
 <div class="wrap">
   <h1>拡散方程式の時間発展比較</h1>
   <div class="lead">
-    まったく同じ初期分布（区間内総量を1に正規化）から、<b>境界なし</b>・<b>反射壁</b>・<b>吸収壁</b>・<b>端→中心ジャンプ</b>の時間発展を比較します。
+    まったく同じ初期分布（区間内総量を1に正規化）から、<b>境界なし</b>・<b>反射壁</b>・<b>吸収壁</b>・<b>端→中心ジャンプ</b>・<b>端→ランダムリスポーン</b>の時間発展を比較します。
     区間は反射壁・吸収壁で <code>0 ≤ x ≤ L</code>、境界なしは同じ表示範囲を切り出して見せています。
   </div>
 
@@ -128,11 +128,21 @@
         <span>最大値 <b id="pReset">-</b></span>
       </div>
     </div>
+
+    <div class="card">
+      <h2>5. 端 → ランダムリスポーン</h2>
+      <div class="desc">端で吸収された質量を区間内へ一様ランダムに再配置。期待値では全域へ一様再注入。</div>
+      <canvas id="randomRespawn"></canvas>
+      <div class="stats">
+        <span>総量（保存） <b id="mRandom">-</b></span>
+        <span>最大値 <b id="pRandom">-</b></span>
+      </div>
+    </div>
   </div>
 
   <div class="note">
     <b>見どころ：</b>
-    4条件は t=0 で同一の分布から出発します。縦軸は全グラフで 0〜9 に固定しています。分布が壁へ到達すると、反射壁では折り返され、吸収壁では失われ、端→中心ジャンプでは失われた質量が中心へ戻されます。長時間では、反射壁は一様分布へ、吸収壁はゼロへ、中心ジャンプ条件は中心が高い三角形状の定常分布へ向かいます。
+    5条件は t=0 で同一の分布から出発します。縦軸は全グラフで 0〜9 に固定しています。分布が壁へ到達すると、反射壁では折り返され、吸収壁では失われ、端→中心ジャンプでは中心へ、端→ランダムリスポーンでは区間全体へ再注入されます。長時間では、反射壁は一様分布へ、吸収壁はゼロへ、中心ジャンプは三角形、ランダムリスポーンは放物線状の定常分布へ向かいます。
   </div>
 </div>
 
@@ -143,7 +153,8 @@ const cvs = {
   free: document.getElementById('free'),
   reflect: document.getElementById('reflect'),
   absorb: document.getElementById('absorb'),
-  jump: document.getElementById('jump')
+  jump: document.getElementById('jump'),
+  randomRespawn: document.getElementById('randomRespawn')
 };
 const els = {
   time:document.getElementById('time'), D:document.getElementById('D'),
@@ -154,6 +165,7 @@ const els = {
   mReflect:document.getElementById('mReflect'), pReflect:document.getElementById('pReflect'),
   mAbsorb:document.getElementById('mAbsorb'), pAbsorb:document.getElementById('pAbsorb'),
   mReset:document.getElementById('mReset'), pReset:document.getElementById('pReset'),
+  mRandom:document.getElementById('mRandom'), pRandom:document.getElementById('pRandom'),
   play:document.getElementById('play'), resetBtn:document.getElementById('reset')
 };
 
@@ -289,6 +301,59 @@ function resetToCenterSol(t,D,x0,sigma){
   });
 }
 
+function randomRespawnSol(t,D,x0,sigma){
+  const M = 161;
+  const dx = L/(M-1);
+  const XX = Array.from({length:M},(_,i)=>i*dx);
+  let u = XX.map(x=>gauss(x,x0,sigma*sigma));
+  let mass0=0;
+  for(let i=0;i<M-1;i++) mass0 += 0.5*(u[i]+u[i+1])*dx;
+  u = u.map(v=>v/mass0);
+
+  if(t>0){
+    const dtStable = 0.44*dx*dx/D;
+    const steps = Math.max(1, Math.ceil(t/dtStable));
+    const dt = t/steps;
+    const r = D*dt/(dx*dx);
+
+    for(let s=0;s<steps;s++){
+      const v = new Array(M).fill(0);
+      for(let i=1;i<M-1;i++){
+        v[i] = u[i] + r*(u[i+1]-2*u[i]+u[i-1]);
+      }
+      v[0]=0;
+      v[M-1]=0;
+
+      let mPrev=0, mNew=0;
+      for(let i=0;i<M-1;i++){
+        mPrev += 0.5*(u[i]+u[i+1])*dx;
+        mNew  += 0.5*(v[i]+v[i+1])*dx;
+      }
+      const lost = Math.max(0,mPrev-mNew);
+
+      // Uniform random respawn in expectation:
+      // add a constant density so total added mass equals "lost".
+      const addDensity = lost/L;
+      for(let i=1;i<M-1;i++) v[i] += addDensity;
+
+      // Tiny numerical correction to keep total mass exactly at mPrev.
+      let corrected=0;
+      for(let i=0;i<M-1;i++) corrected += 0.5*(v[i]+v[i+1])*dx;
+      const corr = (mPrev-corrected)/L;
+      for(let i=1;i<M-1;i++) v[i] += corr;
+
+      u=v;
+    }
+  }
+
+  return X.map(x=>{
+    const q=x/dx;
+    const i=Math.min(M-2,Math.max(0,Math.floor(q)));
+    const a=q-i;
+    return u[i]*(1-a)+u[i+1]*a;
+  });
+}
+
 function integral(y){
   let s=0, dx=L/(N-1);
   for(let i=0;i<N-1;i++) s += 0.5*(y[i]+y[i+1])*dx;
@@ -350,6 +415,10 @@ function plot(c,y,title,wallType,yMax){
     ctx.fillStyle='#ffd28a';
     ctx.fillText('→中心',pad.l+6*dpr,pad.t+14*dpr);
     ctx.fillText('中心←',w-pad.r-44*dpr,pad.t+14*dpr);
+  } else if(wallType==='random'){
+    ctx.fillStyle='#d7b5ff';
+    ctx.fillText('↝ランダム',pad.l+6*dpr,pad.t+14*dpr);
+    ctx.fillText('ランダム↜',w-pad.r-62*dpr,pad.t+14*dpr);
   }
 }
 
@@ -363,18 +432,22 @@ function update(){
   const yr=reflectSol(t,D,x0,sigma);
   const ya=absorbSol(t,D,x0,sigma);
   const yj=resetToCenterSol(t,D,x0,sigma);
+  const yrr=randomRespawnSol(t,D,x0,sigma);
   plot(cvs.free,yf,'free','none',FIXED_Y_MAX);
   plot(cvs.reflect,yr,'reflect','reflect',FIXED_Y_MAX);
   plot(cvs.absorb,ya,'absorb','absorb',FIXED_Y_MAX);
   plot(cvs.jump,yj,'reset','reset',FIXED_Y_MAX);
+  plot(cvs.randomRespawn,yrr,'random','random',FIXED_Y_MAX);
   els.mFree.textContent=integral(yf).toFixed(3);
   els.mReflect.textContent=integral(yr).toFixed(3);
   els.mAbsorb.textContent=integral(ya).toFixed(3);
   els.mReset.textContent=integral(yj).toFixed(3);
+  els.mRandom.textContent=integral(yrr).toFixed(3);
   els.pFree.textContent=Math.max(...yf).toFixed(3);
   els.pReflect.textContent=Math.max(...yr).toFixed(3);
   els.pAbsorb.textContent=Math.max(...ya).toFixed(3);
   els.pReset.textContent=Math.max(...yj).toFixed(3);
+  els.pRandom.textContent=Math.max(...yrr).toFixed(3);
 }
 
 ['time','D','x0','sigma'].forEach(k=>els[k].addEventListener('input',update));

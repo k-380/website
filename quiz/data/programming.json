@@ -1,0 +1,28 @@
+{
+  "title": "プログラミング入門",
+  "sourceUrl": "https://ja.wikipedia.org/wiki/プログラミング",
+  "questions": [
+    {
+      "question": "JSONで配列を表す記号は？",
+      "choices": [
+        "{}",
+        "[]",
+        "()",
+        "<>"
+      ],
+      "answer": 1,
+      "explanation": "JSONでは角括弧 [] が配列を表します。"
+    },
+    {
+      "question": "JavaScriptでJSONデータを取得するときに使えるAPIは？",
+      "choices": [
+        "fetch",
+        "alert",
+        "prompt",
+        "confirm"
+      ],
+      "answer": 0,
+      "explanation": "fetch() はHTTPリクエストを行います。"
+    }
+  ]
+}

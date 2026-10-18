@@ -1,0 +1,17 @@
+{
+  "title": "科学入門",
+  "sourceUrl": "https://ja.wikipedia.org/wiki/光速",
+  "questions": [
+    {
+      "question": "真空中の光速に最も近い値は？",
+      "choices": [
+        "秒速30万km",
+        "秒速3万km",
+        "秒速3000km",
+        "秒速300km"
+      ],
+      "answer": 0,
+      "explanation": "真空中の光速は約299,792 km/sです。"
+    }
+  ]
+}

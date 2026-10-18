@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Wikipedia JSONクイズ</title>
+<style>
+:root{color-scheme:dark;--bg:#0d1117;--panel:#161b22;--line:#30363d;--text:#e6edf3;--muted:#9aa7b5;--accent:#58a6ff;--ok:#3fb950;--bad:#f85149}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:850px;margin:auto;padding:24px 16px 80px}h1{font-size:clamp(25px,5vw,38px);margin:0}p{color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:20px;margin:18px 0}
+button,select{font:inherit;border-radius:9px;padding:11px 14px}button{background:#238636;border:0;color:#fff;cursor:pointer;font-weight:700}
+button:hover{filter:brightness(1.15)}button:disabled{opacity:.5;cursor:default}select{width:100%;background:#0d1117;border:1px solid var(--line);color:var(--text)}
+.row{display:flex;flex-wrap:wrap;gap:12px}.row>*{flex:1}label{display:block;font-weight:600;margin:13px 0 6px}
+.choice{display:block;background:#21262d;border:1px solid var(--line);text-align:left;margin:10px 0;width:100%;font-weight:400}
+.choice.correct{background:#133d25;border-color:var(--ok)}.choice.wrong{background:#441f23;border-color:var(--bad)}
+.hide{display:none}.muted{color:var(--muted)}.small{font-size:13px}.result{border-left:4px solid var(--accent);padding:12px;background:#0d1117;margin:16px 0;border-radius:6px}
+a{color:var(--accent)}.pill{display:inline-block;border:1px solid var(--line);border-radius:100px;padding:2px 9px;font-size:13px;color:var(--muted)}
+</style></head><body><main>
+<header><h1>Wikipedia JSONクイズ</h1><p>Wikipedia → AIクイズメーカーのJSONを使って遊ぼう。</p></header>
+<section class="card" id="setup">
+<h2>クイズを選ぶ</h2><label for="set">問題集</label><select id="set"><option>読み込み中…</option></select>
+<div class="row"><div><label for="count">出題数</label><select id="count"><option value="5">5問</option><option value="10" selected>10問</option><option value="20">20問</option><option value="0">すべて</option></select></div><div><label for="order">出題順</label><select id="order"><option value="random">ランダム</option><option value="original">登録順</option></select></div></div>
+<p id="info" class="small"></p><button id="start" disabled>ゲーム開始</button>
+</section>
+<section id="play" class="card hide" aria-live="polite">
+<div class="row"><span id="progress" class="pill"></span><span id="score" class="pill"></span></div>
+<h2 id="question"></h2><div id="choices"></div>
+<div id="feedback" class="result hide"></div><button id="next" class="hide">次の問題へ</button>
+</section>
+<section id="finish" class="card hide" aria-live="polite"><h2>結果発表</h2><p id="finalscore"></p><button id="retry">もう一度遊ぶ</button></section>
+<p class="small">問題は公開JSONから読み込みます。正解は1つの4択です。問題集の出典は各JSONのsourceUrlを表示します。</p>
+</main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+let sets=[],deck=[],position=0,points=0,answered=false;
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+function valid(q){
+if(!q||typeof q.title!=='string'||!Array.isArray(q.questions))throw Error('title / questions が不正です');
+const questions=q.questions.filter(x=>x&&typeof x.question==='string'&&Array.isArray(x.choices)&&x.choices.length===4&&x.choices.every(c=>typeof c==='string')&&Number.isInteger(x.answer)&&x.answer>=0&&x.answer<4);
+if(!questions.length)throw Error('有効な4択問題がありません');
+return {...q,questions};
+}
+async function load(){
+try{
+const r=await fetch('./manifest.json',{cache:'no-store'});
+if(!r.ok)throw Error('manifest.json: HTTP '+r.status);
+const m=await r.json();if(!Array.isArray(m.files))throw Error('manifest.json に files 配列がありません');
+const paths=m.files.filter(s=>typeof s==='string'&&/^data\/[a-zA-Z0-9_.-]+\.json$/.test(s));
+const result=await Promise.allSettled(paths.map(async path=>{
+const resp=await fetch('./'+path);if(!resp.ok)throw Error(path+': HTTP '+resp.status);
+return {...valid(await resp.json()),path};
+}));
+sets=result.filter(x=>x.status==='fulfilled').map(x=>x.value);
+const errors=result.filter(x=>x.status==='rejected').map(x=>String(x.reason));
+const select=$('set');select.replaceChildren();
+const total=sets.reduce((n,q)=>n+q.questions.length,0);
+if(sets.length){
+const all=document.createElement('option');all.value='all';all.textContent='すべての問題集（'+total+'問）';select.append(all);
+sets.forEach((q,i)=>{const opt=document.createElement('option');opt.value=String(i);opt.textContent=q.title+'（'+q.questions.length+'問）';select.append(opt)});
+$('start').disabled=false;
+}
+$('info').textContent=sets.length+'問題集 / '+total+'問読み込みました'+(errors.length?'。読み込み失敗 '+errors.length+'件: '+errors.join('; '):'');
+if(!sets.length)select.add(new Option('問題集がありません',''));
+}catch(e){$('info').textContent='読み込み失敗: '+e.message}
+}
+function begin(){
+const selected=$('set').value;
+let items=(selected==='all'?sets:sets[Number(selected)]?[sets[Number(selected)]]:[]).flatMap(s=>s.questions.map(q=>({...q,title:s.title,sourceUrl:s.sourceUrl})));
+if(!items.length)return;
+if($('order').value==='random')shuffle(items);
+const count=Number($('count').value);deck=count?items.slice(0,count):items;
+position=0;points=0;$('setup').classList.add('hide');$('finish').classList.add('hide');$('play').classList.remove('hide');show();
+}
+function show(){
+answered=false;$('next').classList.add('hide');$('feedback').classList.add('hide');
+const q=deck[position];$('progress').textContent=(position+1)+' / '+deck.length+'問';$('score').textContent='正解 '+points+'問';
+$('question').textContent=q.question;
+const target=$('choices');target.replaceChildren();
+const opts=q.choices.map((label,index)=>({label,index}));if($('order').value==='random')shuffle(opts);
+for(const option of opts){
+const b=document.createElement('button');b.className='choice';b.textContent=option.label;b.onclick=()=>answer(option.index);b.dataset.index=option.index;target.append(b);
+}
+}
+function answer(index){
+if(answered)return;answered=true;const q=deck[position];if(index===q.answer)points++;
+$('score').textContent='正解 '+points+'問';
+for(const b of $('choices').children){b.disabled=true;const i=Number(b.dataset.index);if(i===q.answer)b.classList.add('correct');else if(i===index)b.classList.add('wrong')}
+const feedback=$('feedback');feedback.replaceChildren();
+const headline=document.createElement('strong');headline.textContent=index===q.answer?'正解！':'不正解';feedback.append(headline);
+const detail=document.createElement('div');detail.textContent='正解: '+q.choices[q.answer]+(q.explanation?' — '+q.explanation:'');feedback.append(detail);
+if(q.sourceUrl&&/^https:\/\/(?:[a-z-]+\.)?wikipedia\.org\/wiki\//.test(q.sourceUrl)){const a=document.createElement('a');a.href=q.sourceUrl;a.target='_blank';a.rel='noopener noreferrer';a.textContent='出典: Wikipedia';feedback.append(a)}
+feedback.classList.remove('hide');$('next').textContent=position+1===deck.length?'結果を見る':'次の問題へ';$('next').classList.remove('hide');
+}
+$('next').onclick=()=>{position++;if(position<deck.length){show()}else{$('play').classList.add('hide');$('finish').classList.remove('hide');$('finalscore').textContent=deck.length+'問中 '+points+'問正解（'+Math.round(points/deck.length*100)+'%）'}};
+$('start').onclick=begin;$('retry').onclick=()=>{$('finish').classList.add('hide');$('setup').classList.remove('hide')};
+load();
+</script></body></html>

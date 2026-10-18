@@ -1,6 +1,7 @@
 {
   "files": [
     "data/programming.json",
-    "data/science.json"
+    "data/science.json",
+    "data/shihonron.json"
   ]
 }

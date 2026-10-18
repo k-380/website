@@ -1,0 +1,32 @@
+name: Update quiz manifest
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'quiz/data/*.json'
+      - '.github/workflows/quiz-manifest.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build manifest
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          files = sorted('data/' + p.name for p in Path('quiz/data').glob('*.json'))
+          Path('quiz/manifest.json').write_text(json.dumps({'files': files}, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+      - name: Commit manifest
+        run: |
+          if ! git diff --quiet -- quiz/manifest.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add quiz/manifest.json
+            git commit -m "Update quiz JSON manifest"
+            git push
+          fi

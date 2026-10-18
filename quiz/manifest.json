@@ -1,5 +1,6 @@
 {
   "files": [
+    "data/plasma.json",
     "data/programming.json",
     "data/science.json",
     "data/shihonron.json"
